@@ -21,7 +21,3 @@ __pycache__/
 # Logs (optional)
 # logs/
 EOF
-
-git add .gitignore
-git commit --amend --no-edit   # folds changes into the previous commit
-git push -u origin om --force-with-lease
