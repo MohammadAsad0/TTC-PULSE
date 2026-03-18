@@ -1,0 +1,6 @@
+logged_at,step,status,row_count,details,artifact_path
+2026-03-17T20:30:53Z,poll_service_alerts_dry_run,safe_no_network,0,"Network disabled by default (allow_network=False); no outbound request attempted.","/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/src/ttc_pulse/alerts/poll_service_alerts.py"
+2026-03-17T20:30:07Z,poll_service_alerts_test_mode,ok_test_mode,1,"Loaded latest local snapshot and wrote one raw Service Alerts snapshot.","/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/raw_snapshots/alerts_20260317T203007Z.pb"
+2026-03-17T20:30:07Z,register_raw_snapshot_manifest,ok,1,"Registered test-mode snapshot capture in raw snapshot manifest.","/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/raw_snapshots/manifest.csv"
+2026-03-17T20:30:58Z,parse_service_alert_snapshots,ok_fallback,3,"Parsed available local snapshots with fallback binary metadata rows; protobuf decoder unavailable.","/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/service_alert_entities.csv"
+2026-03-17T20:31:00Z,build_airflow_sidecar_dag,created,5,"Created simple side-car DAG chain: poll -> register -> parse -> fact hook -> gold validation hook.","/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/airflow/dags/poll_gtfsrt_alerts.py"

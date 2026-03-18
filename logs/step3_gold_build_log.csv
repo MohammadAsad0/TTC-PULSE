@@ -1,0 +1,9 @@
+table,row_count,status,timestamp
+gold_delay_events_core,1004682,built,2026-03-18T03:12:16Z
+gold_linkage_quality,955,built,2026-03-18T03:12:16Z
+gold_route_time_metrics,762679,built,2026-03-18T03:12:16Z
+gold_station_time_metrics,197434,built,2026-03-18T03:12:16Z
+gold_time_reliability,336,built,2026-03-18T03:12:16Z
+gold_top_offender_ranking,264,built,2026-03-18T03:12:16Z
+gold_alert_validation,675,built,2026-03-18T03:12:16Z
+gold_spatial_hotspot,69,built,2026-03-18T03:12:16Z

@@ -1,0 +1,13 @@
+{
+  "caveats": [],
+  "outputs": {
+    "parse_manifest_csv": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/parse_manifest.csv",
+    "parse_summary_json": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/parse_summary.json",
+    "service_alert_entities_csv": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/service_alert_entities.csv"
+  },
+  "parsed_at": "2026-03-17T21:38:24Z",
+  "protobuf_decode_available": true,
+  "rows_emitted": 675,
+  "sample_rows_produced": true,
+  "snapshot_count": 4
+}

@@ -1,0 +1,16 @@
+table_name,row_count,parquet_path,registered_at,status
+silver_bus_events,776435,/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/silver/silver_bus_events.parquet,2026-03-17T20:15:43Z,registered
+silver_subway_events,250558,/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/silver/silver_subway_events.parquet,2026-03-17T20:15:43Z,registered
+silver_gtfsrt_alert_entities,0,/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/silver/silver_gtfsrt_alert_entities.parquet,2026-03-17T20:15:43Z,registered
+fact_delay_events_norm,1026993,/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/silver/fact_delay_events_norm.parquet,2026-03-17T20:15:44Z,registered
+fact_gtfsrt_alerts_norm,0,/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/silver/fact_gtfsrt_alerts_norm.parquet,2026-03-17T20:15:44Z,registered
+dim_route_gtfs,229,/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/dimensions/dim_route_gtfs.parquet,2026-03-17T20:15:44Z,registered
+dim_stop_gtfs,9417,/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/dimensions/dim_stop_gtfs.parquet,2026-03-17T20:15:44Z,registered
+dim_service_gtfs,8,/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/dimensions/dim_service_gtfs.parquet,2026-03-17T20:15:44Z,registered
+dim_route_alias,865,/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/dimensions/dim_route_alias.parquet,2026-03-17T20:15:44Z,registered
+dim_station_alias,13860,/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/dimensions/dim_station_alias.parquet,2026-03-17T20:15:44Z,registered
+dim_incident_code,267,/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/dimensions/dim_incident_code.parquet,2026-03-17T20:15:44Z,registered
+bridge_route_direction_stop,17824,/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/bridge/bridge_route_direction_stop.parquet,2026-03-17T20:15:44Z,registered
+route_alias_review,381,/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/reviews/route_alias_review.parquet,2026-03-17T20:15:44Z,registered
+station_alias_review,13809,/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/reviews/station_alias_review.parquet,2026-03-17T20:15:44Z,registered
+incident_code_review,267,/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/reviews/incident_code_review.parquet,2026-03-17T20:15:44Z,registered
