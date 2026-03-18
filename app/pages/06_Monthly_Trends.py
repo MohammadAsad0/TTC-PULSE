@@ -73,7 +73,6 @@ def _load_station_monthly():
 
 
 st.title("Monthly Trends")
-st.caption("Gold tables: `gold_route_time_metrics`, `gold_station_time_metrics`")
 selected_metric_label = st.selectbox("Metric to analyze", options=METRIC_OPTIONS, index=0, key="monthly_metric")
 
 route_result = _load_route_monthly()

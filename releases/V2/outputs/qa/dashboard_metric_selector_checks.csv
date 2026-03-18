@@ -1,0 +1,8 @@
+check,status,evidence,notes
+"Subway drill bug fix",PASS,"DuckDB describe gold_station_time_metrics -> HAS_MODE False; subway drill queries use station_canonical and temporal filters","No invalid mode filter remains on the station mart."
+"Metric selector on pages 03/04/05/06/10/11",PASS,"Each page contains st.selectbox('Metric to analyze', options=METRIC_OPTIONS)","Five options are shared via src/ttc_pulse/dashboard/metric_config.py."
+"Composite behavior preserved",PASS,"Pages 03/04 keep rank_position sort when Composite Score is selected; pages 10/11 keep composite-specific branches and captions","Legacy composite path preserved."
+"Metric selector drives main chart/ranking metric",PASS,"Pages 03/04/10/11 resolve selected metric to chart/ranking column; pages 05/06 use resolved metric column for heatmap/trends","Cause Mix maps to cause_mix_score."
+"Fallback behavior is user-facing",PASS,"resolve_metric_choice emits fallback messages; drill pages show info/caption on unstable or sparse slices","Fallback does not crash the page."
+"Basic compile smoke",PASS,"py_compile succeeded for src/ttc_pulse/dashboard/metric_config.py, src/ttc_pulse/dashboard/__init__.py, app/pages/03_Bus_Route_Ranking.py, app/pages/04_Subway_Station_Ranking.py, app/pages/05_Weekday_Hour_Heatmap.py, app/pages/06_Monthly_Trends.py, app/pages/10_Bus_Reliability_Drill_Down.py, app/pages/11_Subway_Reliability_Drill_Down.py","Static syntax smoke passed."
+"Live click testing",NOT RUN,"Interactive Streamlit smoke not available in this sandbox","Residual runtime verification gap."

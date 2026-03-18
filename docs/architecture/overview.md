@@ -30,7 +30,7 @@ Out of scope:
 | Bronze | Row-preserving extraction with lineage | Implemented in DuckDB Step 1 build flow |
 | Silver | Canonical dims/bridge/reviews/events/facts | Implemented as Parquet outputs and DuckDB-registrable tables |
 | Gold | Stakeholder marts for reliability and validation | Implemented as Parquet outputs with run logs |
-| Dashboard | Consumption of Gold marts | Streamlit shell + linkage page scaffold; contracts locked |
+| Dashboard | Consumption of Gold marts | Streamlit analysis pages for Reliability Overview, Bus Route Ranking, Subway Station Ranking, Weekday Hour Heatmap, Monthly Trends, Cause Category Mix, Live Alert Validation, Spatial Hotspot Map, Bus Reliability Drill-Down, and Subway Reliability Drill-Down; Linkage QA is archived outside visible navigation |
 | Scheduler | GTFS-RT side-car | Side-car DAG plus placeholder DAG coexist; hooks partially pending |
 
 ## Architecture Invariants

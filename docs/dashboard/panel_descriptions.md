@@ -1,46 +1,50 @@
-# Dashboard Panel Descriptions (Step 4 Runtime Contract)
+# Dashboard Panel Descriptions (V2 Realignment)
 
 ## Runtime Lock
 - Dashboard runtime: Streamlit.
-- Storage and query runtime: DuckDB + Parquet.
-- Spark remains excluded from TTC Pulse MVP.
+- Query/storage runtime: DuckDB + Parquet fallback.
+- Spark excluded from MVP runtime.
 
-## Current UI Build Status
-- `app/streamlit_app.py` provides the shell.
-- `app/pages/01_Linkage_QA.py` exists as a placeholder page.
-- Remaining panels below are locked implementation contracts against existing Gold marts.
-
-## Panel Contracts
-| Panel | Goal | Primary mart(s) | Step 4 status |
+## Visible Panel Order
+| Sidebar order | Panel | Primary purpose | Main source(s) |
 |---|---|---|---|
-| Linkage QA | Expose mapping trust before reliability rankings are consumed. | `gold_linkage_quality` | Contract locked; page scaffold exists. |
-| Reliability Overview | Summarize mode-level reliability trend and intensity. | `gold_delay_events_core`, `gold_time_reliability` | Contract locked; mart data available. |
-| Bus Route Ranking | Rank GTFS-backed bus route risk with explainable components. | `gold_route_time_metrics`, `gold_top_offender_ranking` | Contract locked; mart data available. |
-| Bus Reliability Drill-Down | Follow the route ranking into incident-level and time-window detail for the selected GTFS-backed bus route. | `gold_route_time_metrics`, `gold_delay_events_core`, `gold_top_offender_ranking` | Contract locked; route drill flow page. |
-| Subway Station Ranking | Rank station-level reliability risk with confidence-aware context. | `gold_station_time_metrics`, `gold_top_offender_ranking` | Contract locked; mart data available. |
-| Weekday x Hour Heatmap | Show temporal concentration of reliability pressure with explicit time labels. | `gold_time_reliability` | Contract locked; mart data available. |
-| Monthly Trends | Track longitudinal changes by route/station over month bins. | `gold_route_time_metrics`, `gold_station_time_metrics` | Contract locked; mart data available. |
-| Cause/Category Mix | Show disruption composition by incident category. | `gold_delay_events_core` | Contract locked; mart data available. |
-| Live Alert Validation | Validate GTFS-RT selectors against static GTFS IDs. | `gold_alert_validation` | Contract locked; mart may be empty. |
-| Spatial Hotspot | Map localized subway hotspots for high-confidence records only. | `gold_spatial_hotspot` | Confidence-gated; deferred when gate fails. |
+| 1 | Reliability Overview | Monthwise reliability trend with mode + year-range controls. | `gold_delay_events_core` |
+| 2 | Bus Route Ranking | Date-range bus route ranking with metric selector and scroll-safe Top N view. | `gold_route_time_metrics` |
+| 3 | Subway Station Ranking | Date-range subway station ranking with metric selector and scroll-safe Top N view. | `gold_station_time_metrics` |
+| 4 | Weekday Hour Heatmap | Raw temporal view with only frequency/min-delay-p90/min-gap-p90. | `gold_delay_events_core` |
+| 5 | Monthly Trends | Multi-entity monthly trend analysis. | `gold_route_time_metrics`, `gold_station_time_metrics` |
+| 6 | Cause Category Mix | Category composition with top-N mix + weekday/hour spread views. | `gold_delay_events_core` |
+| 7 | Live Alert Validation | Ops board for selector quality and snapshot capture behavior. | `gold_alert_validation` |
+| 8 | Spatial Hotspot Map | Interactive hotspot map with subway + provisional bus mode. | `gold_spatial_hotspot`, `gold_route_time_metrics`, `bridge_route_direction_stop` |
+| 9 | Bus Reliability Drill-Down | Guided route-first drill story. | `gold_route_time_metrics`, `gold_delay_events_core` |
+| 10 | Subway Reliability Drill-Down | Guided station-first drill story. | `gold_station_time_metrics`, `gold_top_offender_ranking` |
+
+## Explicit V2 Changes
+- Linkage QA page was removed from active sidebar navigation and archived at `app/pages_archive/01_Linkage_QA.py`.
+- Home shell proposal-misaligned runtime copy was removed.
+- Ranking pages now use calendar date ranges and compute rankings on demand over selected windows.
+- Weekday heatmap no longer exposes composite/cause-mix metric toggles.
+- Live alerts page now follows an operations-board layout.
+- Spatial page now supports `bus` mode as provisional route-centroid mapping and labels confidence caveat inline.
 
 ## Metric Selector Contract
-- Major analytical pages expose a shared `Metric to analyze` control with five options:
+- Ranking and drill pages still expose:
   - `Composite Score`
   - `Frequency`
   - `Severity`
   - `Regularity`
   - `Cause Mix`
-- `Composite Score` preserves the current ranking and chart logic exactly.
-- The other options switch the primary ranking/chart metric while keeping the component metrics visible.
-- Every summary card must still show `frequency`, `severity_p90`, `regularity_p90`, `cause_mix_score`, and `composite_score`.
-- If a selected metric becomes sparse or unstable at a fine drill-down level, the page may fall back to incident count, average delay, or `p90` delay with an inline explanation.
+- Composite behavior remains unchanged when selected.
+- At fine granularity where composite is unstable, drill pages fall back to interpretable raw metrics and show inline explanation.
 
-## Mandatory Caveat Messaging
-- `Live Alert Validation` can be empty when no rows exist in `fact_gtfsrt_alerts_norm` / `silver_gtfsrt_alert_entities`.
-- `Spatial Hotspot` must stay deferred when confidence gate fails; current behavior emits a schema-only zero-row `gold_spatial_hotspot`.
-- `Bus Reliability Drill-Down` should open from `Bus Route Ranking` and keep the selected route in context while drilling into supporting incident detail.
-- `Subway Station Ranking` and `Subway Reliability Drill-Down` should support temporal drill-down labels so station detail can be read in the same time frame as the heatmap and trend views.
-- When a Gold mart is missing, the app shell and pages fall back to parquet-backed reads where available.
-- Any panel that displays `composite_score` must display `frequency`, `severity_p90`, `regularity_p90`, and `cause_mix_score` in the same view.
-- `Cause Mix` is a comparative composition signal, not a literal causal attribution score, and it becomes less stable at very fine slices.
+## Heatmap Metric Contract
+- Weekday heatmap metric selector is intentionally restricted to:
+  - `Frequency`
+  - `Min Delay P90`
+  - `Min Gap P90`
+- The heatmap is raw-stat oriented, not z-score/composite oriented.
+
+## Spatial Confidence Note
+- `subway` hotspots come from confidence-gated `gold_spatial_hotspot`.
+- `bus` hotspots are provisional route-centroid points computed from GTFS bridge geometry and route metrics.
+- Bus map is for pattern directionality, not precise incident localization.

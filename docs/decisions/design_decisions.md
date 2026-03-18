@@ -61,6 +61,31 @@ DD-012: Fine-grain fallback policy
 - Rationale: Fine slices can produce brittle composite rankings that are hard to interpret.
 - Consequence: The UI remains stable and explanatory, but must state the fallback inline.
 
+DD-013: V2 navigation cleanup
+- Decision: Remove `Linkage QA` from visible sidebar navigation and keep it archived outside the main app pages.
+- Rationale: The project proposal emphasizes stakeholder-facing reliability views, not an internal QA landing page.
+- Consequence: QA remains recoverable, but the default user path is now aligned to the proposal narrative.
+
+DD-014: Range-based analytical controls
+- Decision: Use year-range controls for reliability overview and calendar date ranges for ranking pages.
+- Rationale: Analysts need to compare windows across the full historical record, not only a single ranking snapshot.
+- Consequence: Ranking views now communicate stability over time while preserving the existing composite score behavior.
+
+DD-015: Raw temporal heatmap lens
+- Decision: Restrict the weekday-hour heatmap to raw frequency, `Min Delay P90`, and `Min Gap P90`.
+- Rationale: This view should surface readable temporal pressure patterns without conflating them with composite ranking logic.
+- Consequence: Composite and cause-mix lenses move to the other analysis pages where they add more value.
+
+DD-016: Operations-board alert framing
+- Decision: Redesign Live Alert Validation as an operations board with KPI, validity, timeline, and recent-alert sections.
+- Rationale: The proposal calls for validation, not a raw table dump.
+- Consequence: Snapshot timestamps are treated as capture context only, not as forecast labels.
+
+DD-017: Provisional bus hotspots
+- Decision: Allow bus mode on the spatial page as provisional route-centroid mapping with an explicit confidence warning.
+- Rationale: The spatial story is still useful for buses, but the evidence is weaker than subway station hotspots.
+- Consequence: Bus hotspots are directional and exploratory, not final geospatial truth.
+
 ## Deferred to Step 4+
 - Production scheduling for Silver/Gold transform jobs and dependency chaining.
 - Hotspot release decision after confidence-gate thresholds are met and documented.

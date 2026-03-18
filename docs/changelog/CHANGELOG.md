@@ -1,5 +1,37 @@
 # CHANGELOG
 
+## 2026-03-18 - V2 UI and Analytics Realignment
+
+### Added
+- `changelog/agent_run_logs/v2_ui_realignment_run.md`
+- `reports/v2_freeze_report.md`
+- `reports/proposal_feature_suggestions.md`
+
+### Updated
+- `app/streamlit_app.py`
+- `app/pages/02_Reliability_Overview.py`
+- `app/pages/03_Bus_Route_Ranking.py`
+- `app/pages/04_Subway_Station_Ranking.py`
+- `app/pages/05_Weekday_Hour_Heatmap.py`
+- `app/pages/06_Monthly_Trends.py`
+- `app/pages/07_Cause_Category_Mix.py`
+- `app/pages/08_Live_Alert_Validation.py`
+- `app/pages/09_Spatial_Hotspot_Map.py`
+- `app/pages/11_Subway_Reliability_Drill_Down.py`
+- `architecture/overview.md`
+- `decisions/design_decisions.md`
+- `qa_and_review/known_caveats.md`
+- `dashboard/panel_descriptions.md`
+- `dashboard/ux_decisions.md`
+- `changelog/CHANGELOG.md`
+
+### Summary
+- Frozen the current workspace state as `V2` with a rollback-safe `releases/V2/` snapshot, manifest, and restore guide.
+- Removed Linkage QA from active dashboard navigation and archived it outside the visible sidebar.
+- Aligned the visible dashboard contract to the proposal by keeping only stakeholder-facing analysis pages.
+- Documented the new control semantics: year-range reliability filtering, date-range ranking, raw-metric heatmaps, and cause spread views.
+- Recorded the new live-alert operations-board framing and provisional bus spatial hotspot behavior.
+
 ## 2026-03-18 - Dashboard Metric Selector and Subway Drill-Down Fix
 
 ### Added

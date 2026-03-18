@@ -21,7 +21,7 @@ def _bootstrap_src_path() -> None:
 
 _bootstrap_src_path()
 
-from ttc_pulse.dashboard.formatting import DAY_NAME_ORDER, fmt_date, fmt_float, fmt_int
+from ttc_pulse.dashboard.formatting import DAY_NAME_ORDER, fmt_float, fmt_int
 from ttc_pulse.dashboard.metric_config import METRIC_COLUMN_MAP, METRIC_OPTIONS
 from ttc_pulse.dashboard.loaders import query_table
 
@@ -268,29 +268,6 @@ def _load_top_stations_full_history() -> Any:
             AND mode = 'subway'
         ORDER BY rank_position ASC, station_name
         """,
-    )
-
-
-@st.cache_data(ttl=180)
-def _load_station_coverage_window(station_name: str | None = None) -> Any:
-    station_filter = ""
-    params: list[object] = []
-    if station_name is not None:
-        station_filter = "AND station_canonical = ?"
-        params.append(station_name)
-    return query_table(
-        table_name="gold_station_time_metrics",
-        query_template=f"""
-        SELECT
-            MIN(service_date) AS min_service_date,
-            MAX(service_date) AS max_service_date,
-            COUNT(DISTINCT EXTRACT(YEAR FROM service_date))::BIGINT AS years_covered,
-            COUNT(DISTINCT DATE_TRUNC('month', service_date))::BIGINT AS months_covered
-        FROM {{source}}
-        WHERE service_date IS NOT NULL
-            {station_filter}
-        """,
-        params=params,
     )
 
 
@@ -729,23 +706,13 @@ def _build_breadcrumb() -> str:
 
 
 def _show_station_summary(station_row: pd.Series, station_name: str) -> None:
-    coverage_result = _load_station_coverage_window(station_name)
-    coverage_text = "-"
-    if coverage_result.status == "ok" and not coverage_result.frame.empty:
-        coverage_row = coverage_result.frame.iloc[0]
-        min_date = coverage_row["min_service_date"]
-        max_date = coverage_row["max_service_date"]
-        if pd.notna(min_date) and pd.notna(max_date):
-            coverage_text = f"{fmt_date(pd.to_datetime(min_date).date())} to {fmt_date(pd.to_datetime(max_date).date())}"
-
     st.markdown("#### Selected Station Summary")
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Overall Composite", fmt_float(station_row["composite_score"], digits=3))
     c2.metric("Total Incidents", fmt_int(station_row["frequency"]))
     c3.metric("P90 Delay (min)", fmt_float(station_row["severity_p90"], digits=1))
     c4.metric("P90 Gap (min)", fmt_float(station_row["regularity_p90"], digits=1))
     c5.metric("Cause Mix", fmt_float(station_row.get("cause_mix_score"), digits=3))
-    c6.metric("Coverage Window", coverage_text)
 
 
 def _station_by_id(frame: pd.DataFrame, station_name: str) -> pd.Series | None:
@@ -789,18 +756,6 @@ selected_metric_label = st.selectbox(
     index=0,
     key="subway_metric_selector",
 )
-
-overall_coverage_result = _load_station_coverage_window()
-if overall_coverage_result.status == "ok" and not overall_coverage_result.frame.empty:
-    overall_coverage_row = overall_coverage_result.frame.iloc[0]
-    min_date = overall_coverage_row["min_service_date"]
-    max_date = overall_coverage_row["max_service_date"]
-    if pd.notna(min_date) and pd.notna(max_date):
-        st.caption(
-            "Historical service-date coverage window: "
-            f"{fmt_date(pd.to_datetime(min_date).date())} to {fmt_date(pd.to_datetime(max_date).date())} "
-            "from `gold_station_time_metrics`."
-        )
 
 ctrl_left, ctrl_mid, ctrl_right = st.columns([2, 1, 1])
 ctrl_left.info(f"Breadcrumb: {_build_breadcrumb()}")
@@ -1246,9 +1201,3 @@ if st.session_state[STATE_WEEKDAY] is not None:
         time_bin_select = st.selectbox("Selected time bin", options=time_bin_options, index=time_bin_index)
         if time_bin_select != str(st.session_state[STATE_TIME_BIN]):
             st.session_state[STATE_TIME_BIN] = time_bin_select
-
-st.caption(
-    "Data source policy: this page reads only DuckDB/Gold marts with parquet fallback (`gold_station_time_metrics`, "
-    "`gold_top_offender_ranking`). Historical service-date windows are labeled explicitly; alert capture timestamps are "
-    "not used here."
-)

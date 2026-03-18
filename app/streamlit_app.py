@@ -21,7 +21,7 @@ _bootstrap_src_path()
 from ttc_pulse.dashboard.formatting import fmt_int, status_label
 from ttc_pulse.dashboard.loaders import GOLD_TABLE_FILES, get_gold_table_status_frame, resolve_duckdb_path
 
-st.set_page_config(page_title="TTC Pulse Dashboard", layout="wide")
+st.set_page_config(page_title="TTC Pulse", layout="wide")
 
 
 @st.cache_data(ttl=60)
@@ -35,8 +35,7 @@ def _load_table_status() -> tuple[Path, "pd.DataFrame"]:
     return db_path, frame
 
 
-st.title("TTC Pulse Dashboard")
-st.caption("Step 4 runtime shell. Pages query DuckDB Gold marts and fall back to parquet-backed reads when Gold is missing.")
+st.subheader("Dashboard Data Status")
 
 db_file, status_frame = _load_table_status()
 ready_count = int((status_frame["status"] == "ok").sum()) if "status" in status_frame else 0
@@ -57,19 +56,4 @@ if not display_frame.empty and "status" in display_frame.columns:
     display_frame["status"] = display_frame["status"].map(status_label)
 st.dataframe(display_frame, use_container_width=True, hide_index=True)
 
-st.markdown(
-    """
-    ### Locked Page Order
-    1. Linkage QA
-    2. Reliability Overview
-    3. Bus Route Ranking
-    4. Bus Reliability Drill-Down
-    5. Subway Station Ranking
-    6. Subway Reliability Drill-Down
-    7. Weekday Hour Heatmap
-    8. Monthly Trends
-    9. Cause Category Mix
-    10. Live Alert Validation
-    11. Spatial Hotspot Map
-    """
-)
+st.caption("Use the sidebar to navigate analysis pages.")

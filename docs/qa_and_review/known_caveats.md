@@ -41,3 +41,13 @@ Incident normalization:
 - Populate and version alias dimensions from approved review decisions.
 - Enforce confidence gates in Gold marts and dashboard panels.
 - Add review backlog and linkage-quality monitoring with alerting thresholds.
+
+## V2 Realignment Caveats
+- `Linkage QA` is no longer visible in the sidebar, but it remains archived at `app/pages_archive/01_Linkage_QA.py` for recovery and QA use.
+- Reliability Overview now filters by year range, so KPI values are slice-dependent and should not be compared directly to the full-history baseline without checking the selected window.
+- Bus and subway ranking pages now recompute on selected date ranges, which makes Top N more flexible but also less comparable to the prior single-snapshot ranking contract.
+- The weekday-hour heatmap is intentionally raw-stat oriented; it no longer uses composite score or cause mix as a primary lens.
+- Cause-by-weekday and cause-by-hour views are spread/composition views, not causal inference outputs.
+- Live Alert Validation is now an operations board; snapshot timestamps are capture context only and must not be interpreted as forecast horizons.
+- Spatial bus hotspots are provisional route-centroid estimates derived from GTFS bridge geometry and route metrics.
+- The spatial page uses a 1 to 69 Top N bound because the current subway hotspot table contains 69 mapped rows.
