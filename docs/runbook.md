@@ -1,101 +1,150 @@
-# TTC Pulse Runbook (Deployment and Execution)
+# TTC Pulse Runbook
+
+This runbook is the execution reference for rebuilding TTC Pulse from raw datasets to the Streamlit dashboard.
 
 ## Execution Root
-`/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse`
 
-## Prerequisites
-- Python 3.14+ available as `python3`.
-- Virtual environment: `../.venv-ttc`.
-- Set module path before running project modules:
+Run all commands from the repository execution folder:
 
 ```bash
-cd /Users/om-college/Work/2\ Canada/York/Winter26/DataViz/Project/ttc_pulse
+cd ttc_pulse
+```
+
+## Environment
+
+Recommended:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
 export PYTHONPATH=src
 ```
 
-## Environment Bootstrap
-Install runtime dependencies in venv as needed:
+## Required Workspace Layout
 
-```bash
-../.venv-ttc/bin/python -m pip install duckdb pyyaml streamlit gtfs-realtime-bindings
+The code expects `datasets/` to exist next to `ttc_pulse/`.
+
+```text
+TTC-PULSE/
+├── datasets/
+│   ├── 01_gtfs_merged/
+│   ├── 02_bus_delay/
+│   │   └── csv/
+│   └── 03_subway_delay/
+│       └── csv/
+└── ttc_pulse/
 ```
 
-Notes:
-- `duckdb` and `pyyaml` are already present in the current venv.
-- `streamlit` and protobuf bindings may need installation in new environments.
+## Step 1: Raw and Bronze
 
-## Step 1 - Ingestion and Bronze
 ```bash
-PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.bronze.build_bronze_tables
+python -m ttc_pulse.bronze.build_bronze_tables
 ```
 
-Expected artifacts:
+Main outputs:
+- `raw/bus/bus_file_registry.csv`
+- `raw/subway/subway_file_registry.csv`
+- `raw/gtfs/gtfs_file_registry.csv`
+- `raw/gtfsrt/gtfsrt_snapshot_registry.csv`
+- `bronze/`
+- `data/ttc_pulse.duckdb`
 - `logs/ingestion_log.csv`
-- `docs/source_inventory.md`
-- `docs/step1_summary.md`
 
-## Step 2 - Silver Canonical Build
-Run in this order:
+## Step 2: Silver, Dimensions, Bridge, Reviews
+
+Run in order:
 
 ```bash
-PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.gtfs.build_dimensions
-PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.gtfs.build_bridge
-PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.aliasing.build_route_alias
-PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.aliasing.build_station_alias
-PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.aliasing.build_incident_code_dim
-PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.aliasing.build_review_tables
-PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.normalization.normalize_bus
-PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.normalization.normalize_subway
-PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.normalization.normalize_gtfsrt_entities
-PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.facts.build_fact_delay_events_norm
-PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.facts.build_fact_gtfsrt_alerts_norm
-PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.normalization.register_step2_tables
+python -m ttc_pulse.gtfs.build_dimensions
+python -m ttc_pulse.gtfs.build_bridge
+python -m ttc_pulse.aliasing.build_route_alias
+python -m ttc_pulse.aliasing.build_station_alias
+python -m ttc_pulse.aliasing.build_incident_code_dim
+python -m ttc_pulse.aliasing.build_review_tables
+python -m ttc_pulse.normalization.normalize_bus
+python -m ttc_pulse.normalization.normalize_subway
+python -m ttc_pulse.normalization.normalize_gtfsrt_entities
+python -m ttc_pulse.facts.build_fact_delay_events_norm
+python -m ttc_pulse.facts.build_fact_gtfsrt_alerts_norm
+python -m ttc_pulse.normalization.register_step2_tables
 ```
 
-Expected artifact:
+Main outputs:
+- `silver/`
+- `dimensions/`
+- `bridge/`
+- `reviews/`
 - `logs/step2_registration_log.csv`
 
-## Step 3 - Gold Mart Build
+## Step 3: Gold Marts
+
 ```bash
-PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.marts.build_gold_rankings
+python -m ttc_pulse.marts.build_gold_rankings
 ```
 
-Expected artifacts:
+This builds the Gold analytical layer, including:
+- `gold_delay_events_core`
+- `gold_linkage_quality`
+- `gold_route_time_metrics`
+- `gold_station_time_metrics`
+- `gold_time_reliability`
+- `gold_top_offender_ranking`
+- `gold_alert_validation`
+- `gold_spatial_hotspot`
+
+Main outputs:
+- `gold/*.parquet`
 - `logs/step3_gold_build_log.csv`
 - `outputs/final_metrics_summary.md`
-- Parquet marts under `gold/`
 
-## GTFS-RT Alerts Side-Car Operations
-One-shot local test-mode poll + parse:
+## Step 4: Launch Dashboard
 
 ```bash
-PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.alerts.poll_service_alerts --test-mode --register-manifest
-PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.alerts.parse_service_alerts
+streamlit run app/streamlit_app.py
 ```
 
-Live poll (network enabled):
+Default local URL:
+- `http://localhost:8501`
+
+## GTFS-RT Service Alerts
+
+One-shot live poll:
 
 ```bash
-PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.alerts.poll_service_alerts --allow-network --register-manifest
+python -m ttc_pulse.alerts.poll_service_alerts --allow-network --register-manifest
 ```
 
-Airflow side-car trigger:
+Parse available snapshots:
 
 ```bash
-airflow dags trigger poll_gtfsrt_alerts
+python -m ttc_pulse.alerts.parse_service_alerts
 ```
 
-## Dashboard Launch
+Offline/test-mode collection:
+
 ```bash
-PYTHONPATH=src ../.venv-ttc/bin/python -m streamlit run app/streamlit_app.py
+python -m ttc_pulse.alerts.poll_service_alerts --test-mode --register-manifest
+python -m ttc_pulse.alerts.parse_service_alerts
 ```
 
-## Verification Checklist
-- Gold row counts: `outputs/final_metrics_summary.md`
-- Step logs: `logs/ingestion_log.csv`, `logs/step2_registration_log.csv`, `logs/step3_gold_build_log.csv`
-- Alerts side-car status: `logs/step3_alerts_sidecar_log.csv`
+Outputs:
+- `alerts/raw_snapshots/`
+- `alerts/parsed/`
 
-## Known Runtime Caveats
-- `gold_alert_validation` can be empty when `fact_gtfsrt_alerts_norm` has no rows.
-- `gold_spatial_hotspot` is intentionally deferred when confidence gate fails.
-- If protobuf decoder dependency is missing, parsed alert outputs are fallback metadata rows only.
+## Validation Checklist
+
+Check these after a full run:
+- `logs/ingestion_log.csv`
+- `logs/step2_registration_log.csv`
+- `logs/step3_gold_build_log.csv`
+- `outputs/final_metrics_summary.md`
+- `reports/dashboard_revision_regression.md`
+
+## Known Caveats
+
+- If the dashboard cannot find DuckDB tables, it falls back to Gold parquet files where available.
+- `gold_alert_validation` may be empty if GTFS-RT alerts were not collected and normalized.
+- `gold_spatial_hotspot` is confidence-gated.
+- Bus hotspot points are provisional route-centroid estimates in the current MVP.
