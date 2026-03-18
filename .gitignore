@@ -21,3 +21,6 @@ __pycache__/
 # Logs (optional)
 # logs/
 EOF
+
+# Large data files
+*.duckdb
