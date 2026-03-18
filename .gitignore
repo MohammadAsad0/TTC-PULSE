@@ -1,0 +1,27 @@
+# Create .gitignore first
+cat > .gitignore << 'EOF'
+# Virtual environment
+.venv-ttc/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# macOS
+.DS_Store
+
+# Data files (large binaries - optional, discuss with team)
+# *.parquet
+# *.duckdb
+# *.pb
+
+# Logs (optional)
+# logs/
+EOF
+
+git add .gitignore
+git commit --amend --no-edit   # folds changes into the previous commit
+git push -u origin om --force-with-lease
