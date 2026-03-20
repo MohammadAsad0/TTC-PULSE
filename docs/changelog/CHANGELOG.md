@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 2026-03-19 - Codex Thread Recovery Documentation
+
+### Added
+- `docs/recovery/MASTER_PROMPT_RECOVERED.md`
+- `docs/recovery/SUBTHREAD_RECOVERY_SUMMARY.md`
+- `docs/recovery/RESUME_POINT_RECOVERED.md`
+
+### Summary
+- Reconstructed the TTC Pulse master prompt from recovered Codex thread archives under `_codex_recovered_threads/`.
+- Documented the major recovered subthread waves, agent roles, and implementation phases.
+- Recorded a repo-grounded resume point so work can continue without depending on lost UI thread history.
+
 ## 2026-03-18 - V2 UI and Analytics Realignment
 
 ### Added

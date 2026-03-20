@@ -131,10 +131,12 @@ mode_options = sorted(frame["mode"].dropna().unique().tolist())
 selected_mode = st.selectbox("Mode", options=mode_options, index=0 if mode_options else None)
 selected_metric_label = st.selectbox("Metric", options=list(METRIC_OPTIONS.keys()), index=0)
 selected_metric_column = METRIC_OPTIONS[selected_metric_label]
-top_n = st.slider("Top N Hotspots", min_value=1, max_value=69, value=25, step=1)
+mode_frame = frame[frame["mode"] == selected_mode].copy()
+top_n_max = max(1, len(mode_frame))
+top_n = st.slider("Top N Hotspots", min_value=1, max_value=top_n_max, value=min(25, top_n_max), step=1)
 search_term = st.text_input("Filter hotspot id contains", value="").strip()
 
-filtered = frame[frame["mode"] == selected_mode].copy()
+filtered = mode_frame
 if search_term:
     filtered = filtered[filtered["spatial_unit_id"].astype(str).str.contains(search_term, case=False, na=False)]
 filtered = filtered.sort_values(selected_metric_column, ascending=False, na_position="last").head(top_n)
