@@ -32,18 +32,23 @@ class ProjectPaths:
     db_path: Path
 
 
+def _looks_like_project_root(path: Path) -> bool:
+    """Return True when path matches the TTC Pulse repo layout."""
+    required_paths = [
+        path / "src" / "ttc_pulse" / "__init__.py",
+        path / "app",
+        path / "requirements.txt",
+    ]
+    return all(candidate.exists() for candidate in required_paths)
+
+
 def resolve_project_paths() -> ProjectPaths:
     """Resolve project/workspace roots from this module location."""
     here = Path(__file__).resolve()
     project_root: Path | None = None
 
     for parent in here.parents:
-        if (
-            parent.name == "ttc_pulse"
-            and (parent / "src").exists()
-            and (parent / "raw").exists()
-            and (parent / "data").exists()
-        ):
+        if _looks_like_project_root(parent):
             project_root = parent
             break
 

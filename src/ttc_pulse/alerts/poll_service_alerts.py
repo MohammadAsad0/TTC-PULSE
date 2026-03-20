@@ -12,6 +12,8 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from ttc_pulse.utils.project_setup import resolve_project_paths
+
 DEFAULT_ALERTS_URL = "https://bustime.ttc.ca/gtfsrt/alerts"
 POLL_INTERVAL_MINUTES = 30
 SNAPSHOT_EXTENSIONS = {".pb", ".bin"}
@@ -39,13 +41,7 @@ def _utc_now() -> datetime:
 
 
 def _resolve_project_root() -> Path:
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        if parent.name != "ttc_pulse":
-            continue
-        if (parent / "src").exists() and (parent / "alerts").exists() and (parent / "airflow").exists():
-            return parent
-    raise RuntimeError(f"Could not resolve ttc_pulse project root from {here}")
+    return resolve_project_paths().project_root
 
 
 def _workspace_root(project_root: Path) -> Path:

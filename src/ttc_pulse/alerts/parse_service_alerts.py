@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
 
+from ttc_pulse.utils.project_setup import resolve_project_paths
+
 try:  # pragma: no cover - optional dependency
     from google.transit import gtfs_realtime_pb2  # type: ignore
 
@@ -84,13 +86,7 @@ def _utc_now() -> datetime:
 
 
 def _resolve_project_root() -> Path:
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        if parent.name != "ttc_pulse":
-            continue
-        if (parent / "src").exists() and (parent / "alerts").exists() and (parent / "airflow").exists():
-            return parent
-    raise RuntimeError(f"Could not resolve ttc_pulse project root from {here}")
+    return resolve_project_paths().project_root
 
 
 def _workspace_root(project_root: Path) -> Path:
