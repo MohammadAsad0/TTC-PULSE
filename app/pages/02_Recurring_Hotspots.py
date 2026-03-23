@@ -23,7 +23,7 @@ def _bootstrap_src_path() -> None:
 _bootstrap_src_path()
 
 from ttc_pulse.dashboard.formatting import fmt_float, fmt_int
-from ttc_pulse.dashboard.loaders import query_table, resolve_project_root
+from ttc_pulse.dashboard.loaders import GOLD_TABLE_FILES, query_table, resolve_project_root
 from ttc_pulse.dashboard.metric_config import METRIC_OPTIONS, metric_axis_title, resolve_metric_choice
 from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector
 
@@ -155,24 +155,59 @@ def _load_station_rankings(start_date: str, end_date: str):
 
 
 @st.cache_data(ttl=120)
-def _load_subway_spatial_hotspot():
+def _load_subway_spatial_hotspot_windowed(start_date: str, end_date: str):
+    spatial_path = resolve_project_root() / GOLD_TABLE_FILES["gold_spatial_hotspot"]
+    if not spatial_path.exists():
+        return query_table(
+            table_name="gold_station_time_metrics",
+            query_template="SELECT * FROM {source} WHERE FALSE",
+        )
+
+    escaped_spatial_path = spatial_path.as_posix().replace("'", "''")
     return query_table(
-        table_name="gold_spatial_hotspot",
-        query_template="""
+        table_name="gold_station_time_metrics",
+        query_template=f"""
+        WITH station_centroids AS (
+            SELECT
+                spatial_unit_id AS station_canonical,
+                AVG(centroid_lat) AS centroid_lat,
+                AVG(centroid_lon) AS centroid_lon,
+                MAX(confidence_score) AS confidence_score
+            FROM read_parquet('{escaped_spatial_path}')
+            WHERE mode = 'subway'
+                AND spatial_unit_id IS NOT NULL
+                AND centroid_lat IS NOT NULL
+                AND centroid_lon IS NOT NULL
+            GROUP BY 1
+        ),
+        station_agg AS (
+            SELECT
+                station_canonical AS spatial_unit_id,
+                SUM(frequency)::DOUBLE AS frequency,
+                quantile_cont(severity_p90, 0.9) FILTER (WHERE severity_p90 IS NOT NULL) AS severity_p90,
+                quantile_cont(regularity_p90, 0.9) FILTER (WHERE regularity_p90 IS NOT NULL) AS regularity_p90,
+                AVG(composite_score) FILTER (WHERE composite_score IS NOT NULL) AS composite_score
+            FROM {{source}}
+            WHERE station_canonical IS NOT NULL
+                AND service_date BETWEEN ? AND ?
+            GROUP BY 1
+        )
         SELECT
-            mode,
-            spatial_unit_type,
-            spatial_unit_id,
-            centroid_lat,
-            centroid_lon,
-            frequency,
-            severity_p90,
-            regularity_p90,
-            composite_score,
-            confidence_score
-        FROM {source}
-        WHERE mode = 'subway'
+            'subway' AS mode,
+            'station_canonical' AS spatial_unit_type,
+            a.spatial_unit_id,
+            c.centroid_lat,
+            c.centroid_lon,
+            a.frequency,
+            a.severity_p90,
+            a.regularity_p90,
+            a.composite_score,
+            COALESCE(c.confidence_score, 0.75) AS confidence_score
+        FROM station_agg AS a
+        JOIN station_centroids AS c
+            ON a.spatial_unit_id = c.station_canonical
         """,
+        params=[start_date, end_date],
     )
 
 
@@ -370,7 +405,7 @@ st.markdown("#### Spatial Map")
 spatial_result = (
     _load_bus_spatial_hotspot_provisional(selected_start_iso, selected_end_iso)
     if selected_mode == "bus"
-    else _load_subway_spatial_hotspot()
+    else _load_subway_spatial_hotspot_windowed(selected_start_iso, selected_end_iso)
 )
 
 if spatial_result.status in {"missing", "error"}:

@@ -25,7 +25,7 @@ from ttc_pulse.dashboard.loaders import query_table
 from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector
 
 
-@st.cache_data(ttl=120)
+@st.cache_data(ttl=30)
 def _load_alert_status_counts():
     return query_table(
         table_name="gold_alert_validation",
@@ -40,7 +40,7 @@ def _load_alert_status_counts():
     )
 
 
-@st.cache_data(ttl=120)
+@st.cache_data(ttl=30)
 def _load_alert_scope_validity():
     return query_table(
         table_name="gold_alert_validation",
@@ -56,7 +56,7 @@ def _load_alert_scope_validity():
     )
 
 
-@st.cache_data(ttl=120)
+@st.cache_data(ttl=30)
 def _load_alert_timeline():
     return query_table(
         table_name="gold_alert_validation",
@@ -73,7 +73,7 @@ def _load_alert_timeline():
     )
 
 
-@st.cache_data(ttl=120)
+@st.cache_data(ttl=30)
 def _load_recent_alerts():
     return query_table(
         table_name="gold_alert_validation",
@@ -120,6 +120,13 @@ st.caption("Understand and verify whether live disruptions align with historical
 
 mode = story_mode_selector(sidebar=True, key="story_mode")
 presentation = is_presentation_mode(mode)
+
+if st.button("Refresh Alert Data", type="secondary"):
+    _load_alert_status_counts.clear()
+    _load_alert_scope_validity.clear()
+    _load_alert_timeline.clear()
+    _load_recent_alerts.clear()
+    st.rerun()
 
 page_story_header(
     audience_question="Do live GTFS-RT alerts align with historical hotspot patterns?",

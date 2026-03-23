@@ -9,3 +9,6 @@ font = "sans serif"
 [server]
 headless = true
 runOnSave = true
+
+[client]
+showErrorDetails = "none"

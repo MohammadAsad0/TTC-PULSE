@@ -12,7 +12,7 @@ def story_mode_selector(sidebar: bool = True, key: str = "ttc_story_mode") -> st
     """Return active story mode and render a shared mode control."""
     target = st.sidebar if sidebar else st
     mode = target.radio(
-        "Mode",
+        "View Mode",
         options=[PRESENTATION_MODE, EXPLORATION_MODE],
         index=0,
         key=key,

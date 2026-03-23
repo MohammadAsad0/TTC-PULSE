@@ -83,8 +83,10 @@ if frame.empty:
 
 mode_options = sorted(frame["mode"].dropna().unique().tolist())
 selected_modes = st.multiselect("Mode", options=mode_options, default=mode_options)
-if selected_modes:
-    frame = frame[frame["mode"].isin(selected_modes)]
+if not selected_modes:
+    st.info("No rows match selected mode filter.")
+    st.stop()
+frame = frame[frame["mode"].isin(selected_modes)]
 if frame.empty:
     st.info("No rows match selected mode filter.")
     st.stop()
@@ -166,7 +168,7 @@ col_a.metric("Gold Tables Ready", fmt_int(ready_count))
 col_b.metric("Gold Tables Empty", fmt_int(empty_count))
 col_c.metric("Gold Tables Missing", fmt_int(missing_count))
 
-st.write(f"DuckDB path: `{db_file.as_posix()}`")
+st.caption("Runtime database status is available. Internal filesystem paths are hidden in stakeholder view.")
 status_display = status_frame.copy()
 if not status_display.empty and "status" in status_display.columns:
     status_display["status"] = status_display["status"].map(status_label)

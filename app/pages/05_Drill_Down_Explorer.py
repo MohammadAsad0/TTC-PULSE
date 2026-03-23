@@ -524,6 +524,23 @@ selected_start_date, selected_end_date = _normalize_date_range(date_selection, m
 selected_start_iso = selected_start_date.isoformat()
 selected_end_iso = selected_end_date.isoformat()
 
+window_signature_key = "drill_window_signature"
+window_signature = (selected_mode, selected_start_iso, selected_end_iso)
+if st.session_state.get(window_signature_key) != window_signature:
+    for state_key in list(st.session_state.keys()):
+        if state_key.startswith(
+            (
+                "drill_selected_year_",
+                "drill_selected_month_",
+                "drill_selected_weekday_",
+                "drill_year_select_",
+                "drill_month_select_",
+                "drill_weekday_select_",
+            )
+        ):
+            del st.session_state[state_key]
+    st.session_state[window_signature_key] = window_signature
+
 ranking_result = _load_rankings(selected_mode, selected_start_iso, selected_end_iso)
 if ranking_result.status in {"missing", "error"}:
     st.error(ranking_result.message)
@@ -595,8 +612,10 @@ year_event = st.altair_chart(
 
 selected_year_from_chart = _extract_year_from_chart_event(year_event, selection_name=selection_name)
 year_state_key = f"drill_selected_year_{selected_mode}_{selected_entity}"
+year_select_key = f"drill_year_select_{selected_mode}_{selected_entity}"
 if selected_year_from_chart in year_options:
     st.session_state[year_state_key] = int(selected_year_from_chart)
+    st.session_state[year_select_key] = int(selected_year_from_chart)
 
 default_year = st.session_state.get(year_state_key, year_options[0])
 if default_year not in year_options:
@@ -605,7 +624,7 @@ selected_year = st.selectbox(
     "Selected Year (click chart or use dropdown)",
     options=year_options,
     index=year_options.index(default_year),
-    key=f"drill_year_select_{selected_mode}_{selected_entity}",
+    key=year_select_key,
 )
 st.session_state[year_state_key] = int(selected_year)
 
@@ -630,6 +649,10 @@ month_frame["month_start"] = pd.to_datetime(
 month_frame = month_frame.dropna(subset=["month_start"])
 month_frame["month_choice"] = month_frame["month_start"].dt.strftime("%b (%m)")
 month_frame["month_label"] = month_frame["month_start"].dt.strftime("%b")
+for metric_name in ["frequency", "severity_p90", "regularity_p90", "cause_mix_score", "composite_score"]:
+    if metric_name not in month_frame.columns:
+        month_frame[metric_name] = 0.0
+    month_frame[metric_name] = pd.to_numeric(month_frame[metric_name], errors="coerce").fillna(0.0)
 
 month_selection_name = "month_pick"
 month_click = alt.selection_point(name=month_selection_name, fields=["month_num"], empty=True, on="click")
@@ -660,8 +683,10 @@ month_num_to_choice = {month_num: month_choice for month_choice, month_num in mo
 month_options = ["All months"] + month_frame["month_choice"].tolist()
 selected_month_from_chart = _extract_month_from_chart_event(month_event, selection_name=month_selection_name)
 month_state_key = f"drill_selected_month_{selected_mode}_{selected_entity}_{selected_year}"
+month_select_key = f"drill_month_select_{selected_mode}_{selected_entity}_{selected_year}"
 if selected_month_from_chart in month_num_to_choice:
     st.session_state[month_state_key] = int(selected_month_from_chart)
+    st.session_state[month_select_key] = month_num_to_choice[int(selected_month_from_chart)]
 
 default_month_num = st.session_state.get(month_state_key)
 default_month_choice = month_num_to_choice.get(default_month_num, "All months")
@@ -671,7 +696,7 @@ selected_month_choice = st.selectbox(
     "Selected Month (click chart or use dropdown)",
     options=month_options,
     index=month_options.index(default_month_choice),
-    key=f"drill_month_select_{selected_mode}_{selected_entity}_{selected_year}",
+    key=month_select_key,
 )
 selected_month_num = month_choice_to_num.get(selected_month_choice)
 st.session_state[month_state_key] = int(selected_month_num) if selected_month_num is not None else None
@@ -695,6 +720,8 @@ if "day_name" not in weekday_frame.columns:
 weekday_base = pd.DataFrame({"day_name": DAY_NAME_ORDER})
 weekday_frame = weekday_base.merge(weekday_frame, on="day_name", how="left")
 for metric_name in ["frequency", "severity_p90", "regularity_p90", "cause_mix_score", "composite_score"]:
+    if metric_name not in weekday_frame.columns:
+        weekday_frame[metric_name] = 0.0
     weekday_frame[metric_name] = pd.to_numeric(weekday_frame[metric_name], errors="coerce").fillna(0.0)
 weekday_frame["day_name"] = pd.Categorical(weekday_frame["day_name"], categories=DAY_NAME_ORDER, ordered=True)
 weekday_frame = weekday_frame.sort_values("day_name")
@@ -731,8 +758,10 @@ weekday_options = ["All weekdays"] + DAY_NAME_ORDER
 selected_weekday_from_chart = _extract_day_name_from_chart_event(weekday_event, selection_name=weekday_selection_name)
 weekday_scope_token = selected_month_num if selected_month_num is not None else "all_months"
 weekday_state_key = f"drill_selected_weekday_{selected_mode}_{selected_entity}_{selected_year}_{weekday_scope_token}"
+weekday_select_key = f"drill_weekday_select_{selected_mode}_{selected_entity}_{selected_year}_{weekday_scope_token}"
 if selected_weekday_from_chart in DAY_NAME_ORDER:
     st.session_state[weekday_state_key] = selected_weekday_from_chart
+    st.session_state[weekday_select_key] = selected_weekday_from_chart
 
 default_weekday_choice = st.session_state.get(weekday_state_key, "All weekdays")
 if default_weekday_choice not in weekday_options:
@@ -741,7 +770,7 @@ selected_weekday_choice = st.selectbox(
     "Selected Weekday (click chart or use dropdown)",
     options=weekday_options,
     index=weekday_options.index(default_weekday_choice),
-    key=f"drill_weekday_select_{selected_mode}_{selected_entity}_{selected_year}_{weekday_scope_token}",
+    key=weekday_select_key,
 )
 selected_weekday = None if selected_weekday_choice == "All weekdays" else selected_weekday_choice
 st.session_state[weekday_state_key] = selected_weekday_choice
@@ -757,6 +786,13 @@ if selected_month_num is not None:
     )
     if weekly_heatmap_result.status == "ok" and not weekly_heatmap_result.frame.empty:
         weekly_heatmap = weekly_heatmap_result.frame.copy()
+        if "week_of_month" not in weekly_heatmap.columns:
+            weekly_heatmap["week_of_month"] = 0
+        if "day_name" not in weekly_heatmap.columns:
+            weekly_heatmap["day_name"] = ""
+        for metric_name in ["frequency", "severity_p90", "regularity_p90", "cause_mix_score", "composite_score"]:
+            if metric_name not in weekly_heatmap.columns:
+                weekly_heatmap[metric_name] = 0.0
         weekly_heatmap["week_of_month"] = pd.to_numeric(weekly_heatmap["week_of_month"], errors="coerce").fillna(0).astype(int)
         weekly_heatmap["day_name"] = pd.Categorical(weekly_heatmap["day_name"], categories=DAY_NAME_ORDER, ordered=True)
         weekly_heatmap = weekly_heatmap.sort_values(["week_of_month", "day_name"])
@@ -788,6 +824,9 @@ time_bin_result = _load_time_bin_metrics(
 )
 if time_bin_result.status == "ok" and not time_bin_result.frame.empty:
     time_bin_frame = time_bin_result.frame.copy()
+    for metric_name in ["frequency", "severity_p90", "regularity_p90", "cause_mix_score", "composite_score"]:
+        if metric_name not in time_bin_frame.columns:
+            time_bin_frame[metric_name] = 0.0
     if selected_month_num is None and selected_weekday is None:
         time_scope = f"{selected_year} (all months, all weekdays)"
     elif selected_month_num is not None and selected_weekday is None:

@@ -171,7 +171,8 @@ def _load_route_monthly(start_date: str, end_date: str):
             AVG(cause_mix_score) AS cause_mix_score,
             AVG(composite_score) AS composite_score
         FROM {source}
-        WHERE service_date IS NOT NULL
+        WHERE mode = 'bus'
+            AND service_date IS NOT NULL
             AND service_date BETWEEN ? AND ?
         GROUP BY 1, 2, 3
         ORDER BY month_start, mode
