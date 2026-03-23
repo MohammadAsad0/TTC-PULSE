@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 import sys
 from typing import Any
@@ -21,7 +22,7 @@ def _bootstrap_src_path() -> None:
 
 _bootstrap_src_path()
 
-from ttc_pulse.dashboard.formatting import DAY_NAME_ORDER, fmt_float, fmt_int
+from ttc_pulse.dashboard.formatting import DAY_NAME_ORDER, fmt_date, fmt_float, fmt_int
 from ttc_pulse.dashboard.metric_config import METRIC_COLUMN_MAP, METRIC_OPTIONS
 from ttc_pulse.dashboard.loaders import query_table
 
@@ -32,6 +33,7 @@ STATE_MONTH = "subway_drill_month"
 STATE_DAY = "subway_drill_day"
 STATE_WEEKDAY = "subway_drill_weekday"
 STATE_TIME_BIN = "subway_drill_time_bin"
+STATE_DATE_WINDOW = "subway_drill_date_window"
 
 SUMMARY_METRIC_ALIASES: dict[str, list[str]] = {
     label: [column] for label, column in METRIC_COLUMN_MAP.items()
@@ -64,7 +66,7 @@ TIME_BIN_ORDER_MAP = {label: order for order, label in TIME_BIN_ORDER}
 
 
 def _init_state() -> None:
-    for key in [STATE_STATION, STATE_YEAR, STATE_MONTH, STATE_DAY, STATE_WEEKDAY, STATE_TIME_BIN]:
+    for key in [STATE_STATION, STATE_YEAR, STATE_MONTH, STATE_DAY, STATE_WEEKDAY, STATE_TIME_BIN, STATE_DATE_WINDOW]:
         if key not in st.session_state:
             st.session_state[key] = None
 
@@ -171,6 +173,21 @@ def _extract_selection_value(event_state: Any, selection_name: str, field_name: 
     return _extract_field_from_event(payload, field_name)
 
 
+def _normalize_date_range(selection: object, min_date: date, max_date: date) -> tuple[date, date]:
+    if isinstance(selection, tuple) and len(selection) == 2:
+        start_date, end_date = selection
+    else:
+        start_date = end_date = selection if isinstance(selection, date) else min_date
+
+    if start_date is None:
+        start_date = min_date
+    if end_date is None:
+        end_date = max_date
+    if start_date > end_date:
+        start_date, end_date = end_date, start_date
+    return start_date, end_date
+
+
 def _is_composite_unstable(frame: pd.DataFrame, min_points: int = 8) -> bool:
     if frame.empty or "composite_score" not in frame.columns:
         return True
@@ -250,29 +267,78 @@ def _sort_ranking_frame(frame: pd.DataFrame, metric_label: str, metric_column: s
 
 
 @st.cache_data(ttl=180)
-def _load_top_stations_full_history() -> Any:
+def _load_top_stations_full_history(start_date: str, end_date: str) -> Any:
     return query_table(
-        table_name="gold_top_offender_ranking",
+        table_name="gold_station_time_metrics",
         query_template="""
+        WITH station_agg AS (
+            SELECT
+                station_canonical AS station_name,
+                SUM(frequency)::DOUBLE AS frequency,
+                quantile_cont(severity_p90, 0.9) FILTER (WHERE severity_p90 IS NOT NULL) AS severity_p90,
+                quantile_cont(regularity_p90, 0.9) FILTER (WHERE regularity_p90 IS NOT NULL) AS regularity_p90,
+                AVG(cause_mix_score) FILTER (WHERE cause_mix_score IS NOT NULL) AS cause_mix_score
+            FROM {source}
+            WHERE station_canonical IS NOT NULL
+                AND service_date IS NOT NULL
+                AND service_date BETWEEN ? AND ?
+            GROUP BY 1
+        ),
+        scored AS (
+            SELECT
+                station_name,
+                frequency,
+                severity_p90,
+                regularity_p90,
+                COALESCE(cause_mix_score, 0.0) AS cause_mix_score,
+                (
+                    0.35 * COALESCE((frequency - AVG(frequency) OVER()) / NULLIF(STDDEV_SAMP(frequency) OVER(), 0.0), 0.0)
+                    + 0.30 * COALESCE((severity_p90 - AVG(severity_p90) OVER()) / NULLIF(STDDEV_SAMP(severity_p90) OVER(), 0.0), 0.0)
+                    + 0.20 * COALESCE((regularity_p90 - AVG(regularity_p90) OVER()) / NULLIF(STDDEV_SAMP(regularity_p90) OVER(), 0.0), 0.0)
+                    + 0.15 * COALESCE(cause_mix_score, 0.0)
+                ) AS composite_score
+            FROM station_agg
+        )
         SELECT
-            ranking_date,
-            entity_id AS station_name,
-            rank_position,
-            frequency,
+            station_name,
+            RANK() OVER (ORDER BY composite_score DESC NULLS LAST, frequency DESC) AS rank_position,
+            CAST(frequency AS BIGINT) AS frequency,
             severity_p90,
             regularity_p90,
             cause_mix_score,
             composite_score
-        FROM {source}
-        WHERE entity_type = 'station'
-            AND mode = 'subway'
+        FROM scored
         ORDER BY rank_position ASC, station_name
         """,
+        params=[start_date, end_date],
     )
 
 
 @st.cache_data(ttl=180)
-def _load_station_year_metrics(station_name: str) -> Any:
+def _load_station_coverage_window(station_name: str | None = None) -> Any:
+    station_filter = ""
+    params: list[object] = []
+    if station_name is not None:
+        station_filter = "AND station_canonical = ?"
+        params.append(station_name)
+    return query_table(
+        table_name="gold_station_time_metrics",
+        query_template=f"""
+        SELECT
+            MIN(service_date) AS min_service_date,
+            MAX(service_date) AS max_service_date,
+            COUNT(DISTINCT EXTRACT(YEAR FROM service_date))::BIGINT AS years_covered,
+            COUNT(DISTINCT DATE_TRUNC('month', service_date))::BIGINT AS months_covered
+        FROM {{source}}
+        WHERE service_date IS NOT NULL
+            {station_filter}
+        """,
+        params=params,
+    )
+
+
+@st.cache_data(ttl=180)
+def _load_station_year_metrics(station_name: str, start_date: str, end_date: str) -> Any:
     return query_table(
         table_name="gold_station_time_metrics",
         query_template="""
@@ -286,6 +352,7 @@ def _load_station_year_metrics(station_name: str) -> Any:
             FROM {source}
             WHERE station_canonical = ?
                 AND service_date IS NOT NULL
+                AND service_date BETWEEN ? AND ?
             GROUP BY 1
         ),
         scored AS (
@@ -317,12 +384,12 @@ def _load_station_year_metrics(station_name: str) -> Any:
         FROM scored
         ORDER BY year ASC
         """,
-        params=[station_name],
+        params=[station_name, start_date, end_date],
     )
 
 
 @st.cache_data(ttl=180)
-def _load_station_month_metrics(station_name: str, year: int) -> Any:
+def _load_station_month_metrics(station_name: str, year: int, start_date: str, end_date: str) -> Any:
     return query_table(
         table_name="gold_station_time_metrics",
         query_template="""
@@ -338,6 +405,7 @@ def _load_station_month_metrics(station_name: str, year: int) -> Any:
             WHERE station_canonical = ?
                 AND CAST(EXTRACT(YEAR FROM service_date) AS INTEGER) = ?
                 AND service_date IS NOT NULL
+                AND service_date BETWEEN ? AND ?
             GROUP BY 1, 2
         ),
         scored AS (
@@ -372,12 +440,18 @@ def _load_station_month_metrics(station_name: str, year: int) -> Any:
         FROM scored
         ORDER BY month_num ASC
         """,
-        params=[station_name, year],
+        params=[station_name, year, start_date, end_date],
     )
 
 
 @st.cache_data(ttl=180)
-def _load_station_daily_month_metrics(station_name: str, year: int, month: int) -> Any:
+def _load_station_daily_month_metrics(
+    station_name: str,
+    year: int,
+    month: int,
+    start_date: str,
+    end_date: str,
+) -> Any:
     return query_table(
         table_name="gold_station_time_metrics",
         query_template="""
@@ -394,6 +468,7 @@ def _load_station_daily_month_metrics(station_name: str, year: int, month: int) 
                 AND CAST(EXTRACT(YEAR FROM service_date) AS INTEGER) = ?
                 AND CAST(EXTRACT(MONTH FROM service_date) AS INTEGER) = ?
                 AND service_date IS NOT NULL
+                AND service_date BETWEEN ? AND ?
             GROUP BY 1
         ),
         scored AS (
@@ -427,12 +502,12 @@ def _load_station_daily_month_metrics(station_name: str, year: int, month: int) 
         FROM scored
         ORDER BY service_date ASC
         """,
-        params=[station_name, year, month],
+        params=[station_name, year, month, start_date, end_date],
     )
 
 
 @st.cache_data(ttl=180)
-def _load_station_weekday_metrics(station_name: str, year: int) -> Any:
+def _load_station_weekday_metrics(station_name: str, year: int, start_date: str, end_date: str) -> Any:
     return query_table(
         table_name="gold_station_time_metrics",
         query_template="""
@@ -458,6 +533,7 @@ def _load_station_weekday_metrics(station_name: str, year: int) -> Any:
             WHERE station_canonical = ?
                 AND CAST(EXTRACT(YEAR FROM service_date) AS INTEGER) = ?
                 AND service_date IS NOT NULL
+                AND service_date BETWEEN ? AND ?
             GROUP BY 1, 2
         ),
         scored AS (
@@ -493,12 +569,18 @@ def _load_station_weekday_metrics(station_name: str, year: int) -> Any:
         FROM scored
         ORDER BY day_order ASC
         """,
-        params=[station_name, year],
+        params=[station_name, year, start_date, end_date],
     )
 
 
 @st.cache_data(ttl=180)
-def _load_station_time_bin_metrics(station_name: str, year: int, day_name: str) -> Any:
+def _load_station_time_bin_metrics(
+    station_name: str,
+    year: int,
+    day_name: str,
+    start_date: str,
+    end_date: str,
+) -> Any:
     return query_table(
         table_name="gold_station_time_metrics",
         query_template="""
@@ -526,6 +608,7 @@ def _load_station_time_bin_metrics(station_name: str, year: int, day_name: str) 
                 AND CAST(EXTRACT(YEAR FROM service_date) AS INTEGER) = ?
                 AND STRFTIME(service_date, '%A') = ?
                 AND service_date IS NOT NULL
+                AND service_date BETWEEN ? AND ?
             GROUP BY 1
         ),
         scored AS (
@@ -570,7 +653,7 @@ def _load_station_time_bin_metrics(station_name: str, year: int, day_name: str) 
             ELSE 99
         END
         """,
-        params=[station_name, year, day_name],
+        params=[station_name, year, day_name, start_date, end_date],
     )
 
 
@@ -706,13 +789,23 @@ def _build_breadcrumb() -> str:
 
 
 def _show_station_summary(station_row: pd.Series, station_name: str) -> None:
+    coverage_result = _load_station_coverage_window(station_name)
+    coverage_text = "-"
+    if coverage_result.status == "ok" and not coverage_result.frame.empty:
+        coverage_row = coverage_result.frame.iloc[0]
+        min_date = coverage_row["min_service_date"]
+        max_date = coverage_row["max_service_date"]
+        if pd.notna(min_date) and pd.notna(max_date):
+            coverage_text = f"{fmt_date(pd.to_datetime(min_date).date())} to {fmt_date(pd.to_datetime(max_date).date())}"
+
     st.markdown("#### Selected Station Summary")
-    c1, c2, c3, c4, c5 = st.columns(5)
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric("Overall Composite", fmt_float(station_row["composite_score"], digits=3))
     c2.metric("Total Incidents", fmt_int(station_row["frequency"]))
     c3.metric("P90 Delay (min)", fmt_float(station_row["severity_p90"], digits=1))
     c4.metric("P90 Gap (min)", fmt_float(station_row["regularity_p90"], digits=1))
     c5.metric("Cause Mix", fmt_float(station_row.get("cause_mix_score"), digits=3))
+    c6.metric("Coverage Window", coverage_text)
 
 
 def _station_by_id(frame: pd.DataFrame, station_name: str) -> pd.Series | None:
@@ -747,7 +840,7 @@ _init_state()
 
 st.title("Subway Reliability Drill-Down")
 st.caption(
-    "Guided drill-down for TTC subway station reliability (full history): station ranking -> year -> month -> "
+    "Guided drill-down for TTC subway station reliability (selected service-date window): station ranking -> year -> month -> "
     "day or weekday -> time bins."
 )
 selected_metric_label = st.selectbox(
@@ -755,6 +848,44 @@ selected_metric_label = st.selectbox(
     options=METRIC_OPTIONS,
     index=0,
     key="subway_metric_selector",
+)
+
+overall_coverage_result = _load_station_coverage_window()
+overall_coverage_frame = _require_result(
+    overall_coverage_result,
+    "No subway station service-date coverage found in Gold station metrics.",
+)
+if overall_coverage_frame.empty:
+    st.stop()
+overall_coverage_row = overall_coverage_frame.iloc[0]
+min_service_date = pd.to_datetime(overall_coverage_row["min_service_date"], errors="coerce")
+max_service_date = pd.to_datetime(overall_coverage_row["max_service_date"], errors="coerce")
+if pd.isna(min_service_date) or pd.isna(max_service_date):
+    st.info("Service-date coverage is unavailable for subway drill-down.")
+    st.stop()
+
+min_date = min_service_date.date()
+max_date = max_service_date.date()
+date_selection = st.date_input(
+    "Service date range",
+    value=(min_date, max_date),
+    min_value=min_date,
+    max_value=max_date,
+    key="subway_drill_date_range",
+)
+selected_start_date, selected_end_date = _normalize_date_range(date_selection, min_date=min_date, max_date=max_date)
+selected_start_iso = selected_start_date.isoformat()
+selected_end_iso = selected_end_date.isoformat()
+
+window_key = f"{selected_start_iso}|{selected_end_iso}"
+if st.session_state.get(STATE_DATE_WINDOW) != window_key:
+    st.session_state[STATE_DATE_WINDOW] = window_key
+    _reset_all()
+
+st.caption(
+    "Data coverage (`service_date`, subway stations): "
+    f"{min_date:%Y-%m} to {max_date:%Y-%m} ({min_date:%Y-%m-%d} to {max_date:%Y-%m-%d}) | "
+    f"Selected: {selected_start_iso} to {selected_end_iso}"
 )
 
 ctrl_left, ctrl_mid, ctrl_right = st.columns([2, 1, 1])
@@ -766,7 +897,7 @@ if ctrl_right.button("Reset Drill-Down"):
 
 top_k = st.slider("Top K Stations", min_value=5, max_value=100, value=20, step=5)
 
-ranking_result = _load_top_stations_full_history()
+ranking_result = _load_top_stations_full_history(selected_start_iso, selected_end_iso)
 ranking_frame = _require_result(ranking_result, "No subway station reliability rows available in Gold ranking data.")
 if ranking_frame.empty:
     st.stop()
@@ -790,9 +921,12 @@ else:
         _clear_from("station")
 
 top_frame = ranking_frame.head(top_k).copy()
-st.markdown("### 1. Top K Subway Stations Across Full History")
+st.markdown("### 1. Top K Subway Stations Across Selected Window")
 if selected_metric_label == "Composite Score":
-    station_chart_title = "Worst Subway Stations by Full-History Composite Reliability Score"
+    station_chart_title = (
+        "Worst Subway Stations by Composite Reliability Score "
+        f"({selected_start_iso} to {selected_end_iso})"
+    )
     station_tooltip = [
         "station_name:N",
         "rank_position:Q",
@@ -802,7 +936,10 @@ if selected_metric_label == "Composite Score":
         "regularity_p90:Q",
     ]
 else:
-    station_chart_title = f"Worst Subway Stations by Full-History {selected_metric_label}"
+    station_chart_title = (
+        f"Worst Subway Stations by {selected_metric_label} "
+        f"({selected_start_iso} to {selected_end_iso})"
+    )
     station_tooltip = ["station_name:N", "rank_position:Q"] + [
         f"{field}:Q" for field in _metric_display_fields(selected_metric_label, "summary")
     ]
@@ -841,7 +978,7 @@ if selected_metric_label != "Composite Score":
 
 st.markdown("---")
 st.markdown("### 2. Selected Station by Year")
-year_result = _load_station_year_metrics(selected_station)
+year_result = _load_station_year_metrics(selected_station, selected_start_iso, selected_end_iso)
 year_frame = _require_result(year_result, "No yearly slices available for the selected station.")
 if year_frame.empty:
     st.stop()
@@ -902,7 +1039,7 @@ st.info(f"Context: Station {selected_station} | Year {selected_year}")
 
 st.markdown("---")
 st.markdown("### 3. Selected Station Within Year by Month")
-month_result = _load_station_month_metrics(selected_station, selected_year)
+month_result = _load_station_month_metrics(selected_station, selected_year, selected_start_iso, selected_end_iso)
 month_frame = _require_result(month_result, "No month-level slices available for the selected station/year.")
 if month_frame.empty:
     st.stop()
@@ -975,7 +1112,13 @@ branch_left, branch_right = st.columns(2)
 
 with branch_left:
     st.markdown("### 4A. Selected Month by Day")
-    daily_result = _load_station_daily_month_metrics(selected_station, selected_year, selected_month)
+    daily_result = _load_station_daily_month_metrics(
+        selected_station,
+        selected_year,
+        selected_month,
+        selected_start_iso,
+        selected_end_iso,
+    )
     daily_frame = _require_result(daily_result, "No day-level rows available for this station/year/month.")
     if not daily_frame.empty:
         daily_frame["service_date"] = pd.to_datetime(daily_frame["service_date"])
@@ -1066,7 +1209,7 @@ with branch_left:
 
 with branch_right:
     st.markdown("### 4B. Selected Year by Weekday")
-    weekday_result = _load_station_weekday_metrics(selected_station, selected_year)
+    weekday_result = _load_station_weekday_metrics(selected_station, selected_year, selected_start_iso, selected_end_iso)
     weekday_frame = _require_result(weekday_result, "No weekday-level rows available for this station/year.")
     if not weekday_frame.empty:
         weekday_frame["day_name"] = pd.Categorical(
@@ -1133,7 +1276,13 @@ if st.session_state[STATE_WEEKDAY] is not None:
     st.markdown("### 5. Weekday to Time Bins")
     st.info(f"Context: Station {selected_station} | Year {selected_year} | Weekday {selected_weekday}")
 
-    time_bin_result = _load_station_time_bin_metrics(selected_station, selected_year, selected_weekday)
+    time_bin_result = _load_station_time_bin_metrics(
+        selected_station,
+        selected_year,
+        selected_weekday,
+        selected_start_iso,
+        selected_end_iso,
+    )
     time_bin_frame = _require_result(time_bin_result, "No time-bin rows available for this station/year/weekday.")
     if not time_bin_frame.empty:
         time_bin_frame["bin_order"] = time_bin_frame["time_bin"].map(TIME_BIN_ORDER_MAP).fillna(99).astype(int)
@@ -1201,3 +1350,8 @@ if st.session_state[STATE_WEEKDAY] is not None:
         time_bin_select = st.selectbox("Selected time bin", options=time_bin_options, index=time_bin_index)
         if time_bin_select != str(st.session_state[STATE_TIME_BIN]):
             st.session_state[STATE_TIME_BIN] = time_bin_select
+
+st.caption(
+    "Data source policy: this page reads only DuckDB/Gold marts with parquet fallback (`gold_station_time_metrics`). "
+    "Historical service-date windows are labeled explicitly; alert capture timestamps are not used here."
+)

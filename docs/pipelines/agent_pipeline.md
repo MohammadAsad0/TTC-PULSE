@@ -24,7 +24,7 @@ Define the operational build sequence for TTC Pulse from ingestion through Gold 
 - Confirm `logs/step3_gold_build_log.csv` and `outputs/final_metrics_summary.md`.
 
 4. Alerts side-car wave
-- Poll/parse Service Alerts (CLI and/or Airflow side-car DAG).
+- Poll/parse Service Alerts (CLI and/or local scheduler: `launchd` on macOS, Windows Task Scheduler on Windows).
 - Re-run alert normalization/fact + Gold alert validation as needed.
 - Track side-car health in `logs/step3_alerts_sidecar_log.csv`.
 

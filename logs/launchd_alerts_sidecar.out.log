@@ -1,0 +1,432 @@
+{
+  "parse_result": {
+    "append_outputs": true,
+    "caveats": [],
+    "outputs": {
+      "parse_manifest_csv": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/parse_manifest.csv",
+      "parse_summary_json": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/parse_summary.json",
+      "service_alert_entities_csv": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/service_alert_entities.csv"
+    },
+    "parsed_at": "2026-03-23T04:43:57Z",
+    "parsed_snapshot_count": 1,
+    "protobuf_decode_available": true,
+    "rows_emitted": 70,
+    "rows_written": {
+      "parse_manifest_csv": 1,
+      "service_alert_entities_csv": 70
+    },
+    "sample_rows_produced": true,
+    "sidecar_log": {
+      "appended_rows": 1,
+      "artifact_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/service_alert_entities.csv",
+      "details": "snapshot_count=1; protobuf_decode_available=True; parsed_snapshot_count=1; skipped_existing=0; append_outputs=True; caveats=-",
+      "log_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/logs/step3_alerts_sidecar_log.csv",
+      "logged_at": "2026-03-23T04:43:57Z",
+      "row_count": 70,
+      "status": "ok",
+      "step": "parse_service_alert_snapshots"
+    },
+    "skipped_existing_snapshots": 0,
+    "snapshot_count": 1
+  },
+  "poll_result": {
+    "allow_network": true,
+    "content_type": "application/x-google-protobuf",
+    "dry_run": false,
+    "feed_url": "https://bustime.ttc.ca/gtfsrt/alerts",
+    "file_size_bytes": 2228,
+    "http_status": 200,
+    "local_snapshot_candidates": 6,
+    "mode": "live",
+    "notes": "",
+    "output_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/raw_snapshots/alerts_20260323T044357Z.pb",
+    "poll_interval_minutes": 30,
+    "poll_window_end_utc": "2026-03-23T05:00:00Z",
+    "poll_window_start_utc": "2026-03-23T04:30:00Z",
+    "raw_manifest": {
+      "appended_rows": 1,
+      "manifest_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/raw_snapshots/manifest.csv",
+      "registered_status": "ok"
+    },
+    "run_id": "alerts_sidecar_20260323T044357Z",
+    "sha256": "f065232b262e4360c5074ff647546e07b306241ec1439b9d6305fe8b61be6df1",
+    "skip_if_unchanged": true,
+    "snapshot_ts_utc": "2026-03-23T04:43:57Z",
+    "source": "live_endpoint",
+    "source_path": "",
+    "status": "ok",
+    "test_mode": false,
+    "unchanged_vs_latest": false
+  },
+  "sidecar_log": {
+    "appended_rows": 1,
+    "artifact_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/raw_snapshots/alerts_20260323T044357Z.pb",
+    "details": "allow_network=True; dry_run=False; test_mode=False; poll_status=ok; parsed_snapshot=yes",
+    "log_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/logs/step3_alerts_sidecar_log.csv",
+    "logged_at": "2026-03-23T04:43:57Z",
+    "row_count": 70,
+    "status": "ok",
+    "step": "alerts_sidecar_cycle"
+  },
+  "status": "ok"
+}
+{
+  "parse_result": {
+    "append_outputs": true,
+    "caveats": [],
+    "outputs": {
+      "parse_manifest_csv": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/parse_manifest.csv",
+      "parse_summary_json": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/parse_summary.json",
+      "service_alert_entities_csv": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/service_alert_entities.csv"
+    },
+    "parsed_at": "2026-03-23T05:13:58Z",
+    "parsed_snapshot_count": 1,
+    "protobuf_decode_available": true,
+    "rows_emitted": 69,
+    "rows_written": {
+      "parse_manifest_csv": 1,
+      "service_alert_entities_csv": 69
+    },
+    "sample_rows_produced": true,
+    "sidecar_log": {
+      "appended_rows": 1,
+      "artifact_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/service_alert_entities.csv",
+      "details": "snapshot_count=1; protobuf_decode_available=True; parsed_snapshot_count=1; skipped_existing=0; append_outputs=True; caveats=-",
+      "log_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/logs/step3_alerts_sidecar_log.csv",
+      "logged_at": "2026-03-23T05:13:58Z",
+      "row_count": 69,
+      "status": "ok",
+      "step": "parse_service_alert_snapshots"
+    },
+    "skipped_existing_snapshots": 0,
+    "snapshot_count": 1
+  },
+  "poll_result": {
+    "allow_network": true,
+    "content_type": "application/x-google-protobuf",
+    "dry_run": false,
+    "feed_url": "https://bustime.ttc.ca/gtfsrt/alerts",
+    "file_size_bytes": 2067,
+    "http_status": 200,
+    "local_snapshot_candidates": 8,
+    "mode": "live",
+    "notes": "",
+    "output_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/raw_snapshots/alerts_20260323T051358Z.pb",
+    "poll_interval_minutes": 30,
+    "poll_window_end_utc": "2026-03-23T05:30:00Z",
+    "poll_window_start_utc": "2026-03-23T05:00:00Z",
+    "raw_manifest": {
+      "appended_rows": 1,
+      "manifest_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/raw_snapshots/manifest.csv",
+      "registered_status": "ok"
+    },
+    "run_id": "alerts_sidecar_20260323T051358Z",
+    "sha256": "1b51603e223d5787bc693a92dfe1d726a829c772861a4bcbd3b176e0537e051c",
+    "skip_if_unchanged": true,
+    "snapshot_ts_utc": "2026-03-23T05:13:58Z",
+    "source": "live_endpoint",
+    "source_path": "",
+    "status": "ok",
+    "test_mode": false,
+    "unchanged_vs_latest": false
+  },
+  "sidecar_log": {
+    "appended_rows": 1,
+    "artifact_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/raw_snapshots/alerts_20260323T051358Z.pb",
+    "details": "allow_network=True; dry_run=False; test_mode=False; poll_status=ok; parsed_snapshot=yes",
+    "log_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/logs/step3_alerts_sidecar_log.csv",
+    "logged_at": "2026-03-23T05:13:58Z",
+    "row_count": 69,
+    "status": "ok",
+    "step": "alerts_sidecar_cycle"
+  },
+  "status": "ok"
+}
+{
+  "parse_result": {
+    "append_outputs": true,
+    "caveats": [],
+    "outputs": {
+      "parse_manifest_csv": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/parse_manifest.csv",
+      "parse_summary_json": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/parse_summary.json",
+      "service_alert_entities_csv": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/service_alert_entities.csv"
+    },
+    "parsed_at": "2026-03-23T05:43:58Z",
+    "parsed_snapshot_count": 1,
+    "protobuf_decode_available": true,
+    "rows_emitted": 69,
+    "rows_written": {
+      "parse_manifest_csv": 1,
+      "service_alert_entities_csv": 69
+    },
+    "sample_rows_produced": true,
+    "sidecar_log": {
+      "appended_rows": 1,
+      "artifact_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/service_alert_entities.csv",
+      "details": "snapshot_count=1; protobuf_decode_available=True; parsed_snapshot_count=1; skipped_existing=0; append_outputs=True; caveats=-",
+      "log_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/logs/step3_alerts_sidecar_log.csv",
+      "logged_at": "2026-03-23T05:43:58Z",
+      "row_count": 69,
+      "status": "ok",
+      "step": "parse_service_alert_snapshots"
+    },
+    "skipped_existing_snapshots": 0,
+    "snapshot_count": 1
+  },
+  "poll_result": {
+    "allow_network": true,
+    "content_type": "application/x-google-protobuf",
+    "dry_run": false,
+    "feed_url": "https://bustime.ttc.ca/gtfsrt/alerts",
+    "file_size_bytes": 2067,
+    "http_status": 200,
+    "local_snapshot_candidates": 9,
+    "mode": "live",
+    "notes": "",
+    "output_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/raw_snapshots/alerts_20260323T054358Z.pb",
+    "poll_interval_minutes": 30,
+    "poll_window_end_utc": "2026-03-23T06:00:00Z",
+    "poll_window_start_utc": "2026-03-23T05:30:00Z",
+    "raw_manifest": {
+      "appended_rows": 1,
+      "manifest_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/raw_snapshots/manifest.csv",
+      "registered_status": "ok"
+    },
+    "run_id": "alerts_sidecar_20260323T054358Z",
+    "sha256": "7d9206391ad83f6516b9cba171dacc7f04e8dad904780ed0443924ed5b4d690e",
+    "skip_if_unchanged": true,
+    "snapshot_ts_utc": "2026-03-23T05:43:58Z",
+    "source": "live_endpoint",
+    "source_path": "",
+    "status": "ok",
+    "test_mode": false,
+    "unchanged_vs_latest": false
+  },
+  "sidecar_log": {
+    "appended_rows": 1,
+    "artifact_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/raw_snapshots/alerts_20260323T054358Z.pb",
+    "details": "allow_network=True; dry_run=False; test_mode=False; poll_status=ok; parsed_snapshot=yes",
+    "log_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/logs/step3_alerts_sidecar_log.csv",
+    "logged_at": "2026-03-23T05:43:58Z",
+    "row_count": 69,
+    "status": "ok",
+    "step": "alerts_sidecar_cycle"
+  },
+  "status": "ok"
+}
+{
+  "parse_result": {
+    "append_outputs": true,
+    "caveats": [],
+    "outputs": {
+      "parse_manifest_csv": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/parse_manifest.csv",
+      "parse_summary_json": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/parse_summary.json",
+      "service_alert_entities_csv": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/service_alert_entities.csv"
+    },
+    "parsed_at": "2026-03-23T06:13:59Z",
+    "parsed_snapshot_count": 1,
+    "protobuf_decode_available": true,
+    "rows_emitted": 71,
+    "rows_written": {
+      "parse_manifest_csv": 1,
+      "service_alert_entities_csv": 71
+    },
+    "sample_rows_produced": true,
+    "sidecar_log": {
+      "appended_rows": 1,
+      "artifact_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/service_alert_entities.csv",
+      "details": "snapshot_count=1; protobuf_decode_available=True; parsed_snapshot_count=1; skipped_existing=0; append_outputs=True; caveats=-",
+      "log_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/logs/step3_alerts_sidecar_log.csv",
+      "logged_at": "2026-03-23T06:13:59Z",
+      "row_count": 71,
+      "status": "ok",
+      "step": "parse_service_alert_snapshots"
+    },
+    "skipped_existing_snapshots": 0,
+    "snapshot_count": 1
+  },
+  "poll_result": {
+    "allow_network": true,
+    "content_type": "application/x-google-protobuf",
+    "dry_run": false,
+    "feed_url": "https://bustime.ttc.ca/gtfsrt/alerts",
+    "file_size_bytes": 2418,
+    "http_status": 200,
+    "local_snapshot_candidates": 10,
+    "mode": "live",
+    "notes": "",
+    "output_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/raw_snapshots/alerts_20260323T061359Z.pb",
+    "poll_interval_minutes": 30,
+    "poll_window_end_utc": "2026-03-23T06:30:00Z",
+    "poll_window_start_utc": "2026-03-23T06:00:00Z",
+    "raw_manifest": {
+      "appended_rows": 1,
+      "manifest_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/raw_snapshots/manifest.csv",
+      "registered_status": "ok"
+    },
+    "run_id": "alerts_sidecar_20260323T061359Z",
+    "sha256": "8c9e2324231c4dbe9957522e8d1551cb85854a33d46aabff54d4658877af56ac",
+    "skip_if_unchanged": true,
+    "snapshot_ts_utc": "2026-03-23T06:13:59Z",
+    "source": "live_endpoint",
+    "source_path": "",
+    "status": "ok",
+    "test_mode": false,
+    "unchanged_vs_latest": false
+  },
+  "sidecar_log": {
+    "appended_rows": 1,
+    "artifact_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/raw_snapshots/alerts_20260323T061359Z.pb",
+    "details": "allow_network=True; dry_run=False; test_mode=False; poll_status=ok; parsed_snapshot=yes",
+    "log_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/logs/step3_alerts_sidecar_log.csv",
+    "logged_at": "2026-03-23T06:13:59Z",
+    "row_count": 71,
+    "status": "ok",
+    "step": "alerts_sidecar_cycle"
+  },
+  "status": "ok"
+}
+{
+  "parse_result": {
+    "append_outputs": true,
+    "caveats": [],
+    "outputs": {
+      "parse_manifest_csv": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/parse_manifest.csv",
+      "parse_summary_json": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/parse_summary.json",
+      "service_alert_entities_csv": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/service_alert_entities.csv"
+    },
+    "parsed_at": "2026-03-23T06:44:00Z",
+    "parsed_snapshot_count": 1,
+    "protobuf_decode_available": true,
+    "rows_emitted": 71,
+    "rows_written": {
+      "parse_manifest_csv": 1,
+      "service_alert_entities_csv": 71
+    },
+    "sample_rows_produced": true,
+    "sidecar_log": {
+      "appended_rows": 1,
+      "artifact_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/service_alert_entities.csv",
+      "details": "snapshot_count=1; protobuf_decode_available=True; parsed_snapshot_count=1; skipped_existing=0; append_outputs=True; caveats=-",
+      "log_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/logs/step3_alerts_sidecar_log.csv",
+      "logged_at": "2026-03-23T06:44:00Z",
+      "row_count": 71,
+      "status": "ok",
+      "step": "parse_service_alert_snapshots"
+    },
+    "skipped_existing_snapshots": 0,
+    "snapshot_count": 1
+  },
+  "poll_result": {
+    "allow_network": true,
+    "content_type": "application/x-google-protobuf",
+    "dry_run": false,
+    "feed_url": "https://bustime.ttc.ca/gtfsrt/alerts",
+    "file_size_bytes": 2418,
+    "http_status": 200,
+    "local_snapshot_candidates": 11,
+    "mode": "live",
+    "notes": "",
+    "output_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/raw_snapshots/alerts_20260323T064400Z.pb",
+    "poll_interval_minutes": 30,
+    "poll_window_end_utc": "2026-03-23T07:00:00Z",
+    "poll_window_start_utc": "2026-03-23T06:30:00Z",
+    "raw_manifest": {
+      "appended_rows": 1,
+      "manifest_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/raw_snapshots/manifest.csv",
+      "registered_status": "ok"
+    },
+    "run_id": "alerts_sidecar_20260323T064400Z",
+    "sha256": "d217a4c92045b6083d2efe15e42679a0a1161647d023ac88491845197efdaeda",
+    "skip_if_unchanged": true,
+    "snapshot_ts_utc": "2026-03-23T06:44:00Z",
+    "source": "live_endpoint",
+    "source_path": "",
+    "status": "ok",
+    "test_mode": false,
+    "unchanged_vs_latest": false
+  },
+  "sidecar_log": {
+    "appended_rows": 1,
+    "artifact_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/raw_snapshots/alerts_20260323T064400Z.pb",
+    "details": "allow_network=True; dry_run=False; test_mode=False; poll_status=ok; parsed_snapshot=yes",
+    "log_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/logs/step3_alerts_sidecar_log.csv",
+    "logged_at": "2026-03-23T06:44:00Z",
+    "row_count": 71,
+    "status": "ok",
+    "step": "alerts_sidecar_cycle"
+  },
+  "status": "ok"
+}
+{
+  "parse_result": {
+    "append_outputs": true,
+    "caveats": [],
+    "outputs": {
+      "parse_manifest_csv": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/parse_manifest.csv",
+      "parse_summary_json": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/parse_summary.json",
+      "service_alert_entities_csv": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/service_alert_entities.csv"
+    },
+    "parsed_at": "2026-03-23T07:14:01Z",
+    "parsed_snapshot_count": 1,
+    "protobuf_decode_available": true,
+    "rows_emitted": 69,
+    "rows_written": {
+      "parse_manifest_csv": 1,
+      "service_alert_entities_csv": 69
+    },
+    "sample_rows_produced": true,
+    "sidecar_log": {
+      "appended_rows": 1,
+      "artifact_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/service_alert_entities.csv",
+      "details": "snapshot_count=1; protobuf_decode_available=True; parsed_snapshot_count=1; skipped_existing=0; append_outputs=True; caveats=-",
+      "log_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/logs/step3_alerts_sidecar_log.csv",
+      "logged_at": "2026-03-23T07:14:01Z",
+      "row_count": 69,
+      "status": "ok",
+      "step": "parse_service_alert_snapshots"
+    },
+    "skipped_existing_snapshots": 0,
+    "snapshot_count": 1
+  },
+  "poll_result": {
+    "allow_network": true,
+    "content_type": "application/x-google-protobuf",
+    "dry_run": false,
+    "feed_url": "https://bustime.ttc.ca/gtfsrt/alerts",
+    "file_size_bytes": 2067,
+    "http_status": 200,
+    "local_snapshot_candidates": 12,
+    "mode": "live",
+    "notes": "",
+    "output_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/raw_snapshots/alerts_20260323T071400Z.pb",
+    "poll_interval_minutes": 30,
+    "poll_window_end_utc": "2026-03-23T07:30:00Z",
+    "poll_window_start_utc": "2026-03-23T07:00:00Z",
+    "raw_manifest": {
+      "appended_rows": 1,
+      "manifest_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/raw_snapshots/manifest.csv",
+      "registered_status": "ok"
+    },
+    "run_id": "alerts_sidecar_20260323T071400Z",
+    "sha256": "95f4850701644627adb74142bab0daf90c8e26592efc77ab963eac3a8a69c908",
+    "skip_if_unchanged": true,
+    "snapshot_ts_utc": "2026-03-23T07:14:00Z",
+    "source": "live_endpoint",
+    "source_path": "",
+    "status": "ok",
+    "test_mode": false,
+    "unchanged_vs_latest": false
+  },
+  "sidecar_log": {
+    "appended_rows": 1,
+    "artifact_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/raw_snapshots/alerts_20260323T071400Z.pb",
+    "details": "allow_network=True; dry_run=False; test_mode=False; poll_status=ok; parsed_snapshot=yes",
+    "log_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/logs/step3_alerts_sidecar_log.csv",
+    "logged_at": "2026-03-23T07:14:01Z",
+    "row_count": 69,
+    "status": "ok",
+    "step": "alerts_sidecar_cycle"
+  },
+  "status": "ok"
+}

@@ -16,6 +16,7 @@ from urllib.request import Request, urlopen
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from ttc_pulse.alerts._sidecar_log import append_alert_sidecar_log_row
 from ttc_pulse.utils.project_setup import resolve_project_paths
 
 DEFAULT_ALERTS_URL = "https://bustime.ttc.ca/gtfsrt/alerts"
@@ -71,6 +72,19 @@ def _append_csv_rows(path: Path, fieldnames: list[str], rows: list[dict[str, Any
             writer.writerow({column: row.get(column, "") for column in fieldnames})
             row_count += 1
     return row_count
+
+
+def _latest_manifest_sha(manifest_path: Path) -> str:
+    if not manifest_path.exists() or manifest_path.stat().st_size == 0:
+        return ""
+    latest_sha = ""
+    with manifest_path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            candidate = str(row.get("sha256") or "").strip()
+            if candidate:
+                latest_sha = candidate
+    return latest_sha
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -156,6 +170,7 @@ def _fetch_alerts_payload(feed_url: str, timeout_seconds: float) -> dict[str, An
 def register_raw_snapshot_record(
     poll_result: dict[str, Any],
     manifest_path: Path | None = None,
+    sidecar_log_path: Path | None = None,
 ) -> dict[str, Any]:
     """Append one row into alerts/raw_snapshots/manifest.csv."""
     project_root = _resolve_project_root()
@@ -184,6 +199,17 @@ def register_raw_snapshot_record(
         "notes": poll_result.get("notes", ""),
     }
     appended_rows = _append_csv_rows(resolved_manifest, RAW_MANIFEST_COLUMNS, [row])
+    append_alert_sidecar_log_row(
+        step="register_raw_snapshot_manifest",
+        status=row["status"] or "ok",
+        row_count=appended_rows,
+        details=(
+            f"Registered raw snapshot manifest row for "
+            f"{row['output_rel_path'] or row['output_path'] or row['source_path'] or 'unknown'}."
+        ),
+        artifact_path=resolved_manifest.as_posix(),
+        log_path=sidecar_log_path,
+    )
     return {
         "manifest_path": resolved_manifest.as_posix(),
         "appended_rows": appended_rows,
@@ -202,6 +228,8 @@ def run_poll_service_alerts(
     allow_network: bool = False,
     fixture_path: Path | None = None,
     register_manifest: bool = False,
+    sidecar_log_path: Path | None = None,
+    skip_if_unchanged: bool = True,
 ) -> dict[str, Any]:
     """Poll one GTFS-RT Service Alerts snapshot with explicit safety controls."""
     project_root = _resolve_project_root()
@@ -260,6 +288,7 @@ def run_poll_service_alerts(
     output_path = ""
     checksum = ""
     payload_size = 0
+    unchanged_vs_latest = False
     if payload is not None:
         payload_size = len(payload)
         checksum = _sha256_bytes(payload)
@@ -270,16 +299,24 @@ def run_poll_service_alerts(
                 inferred_extension = source_suffix
         snapshot_name = _build_snapshot_name(poll_time, inferred_extension)
         target_path = (resolved_output_dir / snapshot_name).resolve()
-        output_path = target_path.as_posix()
+        manifest_path = (project_root / "alerts" / "raw_snapshots" / "manifest.csv").resolve()
 
         if dry_run:
             status = "dry_run" if status != "network_unavailable" else "dry_run_network_unavailable"
         else:
-            target_path.write_bytes(payload)
-            if test_mode:
-                status = "ok_test_mode"
-            elif status == "fetched_live_snapshot":
-                status = "ok"
+            if skip_if_unchanged:
+                latest_sha = _latest_manifest_sha(manifest_path)
+                if latest_sha and latest_sha == checksum:
+                    unchanged_vs_latest = True
+                    status = "no_change"
+                    notes.append("No change vs latest raw snapshot; skipped snapshot write.")
+            if not unchanged_vs_latest:
+                output_path = target_path.as_posix()
+                target_path.write_bytes(payload)
+                if test_mode:
+                    status = "ok_test_mode"
+                elif status == "fetched_live_snapshot":
+                    status = "ok"
 
     result: dict[str, Any] = {
         "run_id": run_id,
@@ -300,12 +337,42 @@ def run_poll_service_alerts(
         "output_path": output_path,
         "file_size_bytes": payload_size,
         "sha256": checksum,
+        "unchanged_vs_latest": unchanged_vs_latest,
+        "skip_if_unchanged": skip_if_unchanged,
         "local_snapshot_candidates": len(local_snapshots),
         "notes": " | ".join(notes).strip(),
     }
 
-    if register_manifest:
-        result["raw_manifest"] = register_raw_snapshot_record(result)
+    if register_manifest and payload is not None and not dry_run and output_path:
+        result["raw_manifest"] = register_raw_snapshot_record(result, sidecar_log_path=sidecar_log_path)
+
+    step = "poll_service_alerts"
+    if dry_run:
+        step = "poll_service_alerts_dry_run"
+    elif test_mode:
+        step = "poll_service_alerts_test_mode"
+    elif allow_network:
+        if status == "ok":
+            step = "poll_service_alerts_live"
+        elif status == "no_change":
+            step = "poll_service_alerts_no_change"
+        else:
+            step = "poll_service_alerts_network_unavailable"
+    else:
+        step = "poll_service_alerts_safe_no_network"
+
+    append_alert_sidecar_log_row(
+        step=step,
+        status=status,
+        row_count=1 if payload is not None and not dry_run else 0,
+        details=(
+            f"mode={mode}; source={source}; snapshot_ts={result['snapshot_ts_utc']}; "
+            f"allow_network={allow_network}; dry_run={dry_run}; test_mode={test_mode}; "
+            f"notes={result['notes'] or '-'}"
+        ),
+        artifact_path=output_path or resolved_output_dir.as_posix(),
+        log_path=sidecar_log_path,
+    )
     return result
 
 
@@ -332,6 +399,17 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Append a row into alerts/raw_snapshots/manifest.csv.",
     )
+    parser.add_argument(
+        "--log-path",
+        type=Path,
+        default=None,
+        help="Optional side-car log CSV path (defaults to logs/step3_alerts_sidecar_log.csv).",
+    )
+    parser.add_argument(
+        "--force-write-unchanged",
+        action="store_true",
+        help="Write snapshot even when payload hash matches the latest manifest record.",
+    )
     return parser
 
 
@@ -346,6 +424,8 @@ def main() -> None:
         allow_network=args.allow_network,
         fixture_path=args.fixture_path,
         register_manifest=args.register_manifest,
+        sidecar_log_path=args.log_path,
+        skip_if_unchanged=not args.force_write_unchanged,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
 

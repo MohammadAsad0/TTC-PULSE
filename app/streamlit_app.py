@@ -1,59 +1,21 @@
 from __future__ import annotations
 
-from pathlib import Path
-import sys
-
 import streamlit as st
-
-
-def _bootstrap_src_path() -> None:
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        src_dir = parent / "src"
-        if (src_dir / "ttc_pulse").exists():
-            if str(src_dir) not in sys.path:
-                sys.path.insert(0, str(src_dir))
-            return
-
-
-_bootstrap_src_path()
-
-from ttc_pulse.dashboard.formatting import fmt_int, status_label
-from ttc_pulse.dashboard.loaders import GOLD_TABLE_FILES, get_gold_table_status_frame, resolve_duckdb_path
 
 st.set_page_config(page_title="TTC Pulse", layout="wide")
 
+st.title("TTC Pulse")
+st.caption("A reliability story for TTC routes and stations.")
 
-@st.cache_data(ttl=60)
-def _load_table_status() -> tuple[Path, "pd.DataFrame"]:
-    import pandas as pd
-
-    db_path = resolve_duckdb_path()
-    frame = get_gold_table_status_frame(table_names=GOLD_TABLE_FILES.keys(), db_path=db_path)
-    if frame.empty:
-        frame = pd.DataFrame(columns=["table_name", "status", "source", "row_count", "message"])
-    return db_path, frame
-
-
-st.subheader("Dashboard Data Status")
-
-db_file, status_frame = _load_table_status()
-ready_count = int((status_frame["status"] == "ok").sum()) if "status" in status_frame else 0
-empty_count = int((status_frame["status"] == "empty").sum()) if "status" in status_frame else 0
-missing_count = int((status_frame["status"] == "missing").sum()) if "status" in status_frame else 0
-
-top_left, top_mid, top_right = st.columns(3)
-top_left.metric("Gold Tables Ready", fmt_int(ready_count))
-top_mid.metric("Gold Tables Empty", fmt_int(empty_count))
-top_right.metric("Gold Tables Missing", fmt_int(missing_count))
-
-st.write(f"DuckDB path: `{db_file.as_posix()}`")
-if missing_count > 0:
-    st.warning("Some Gold marts are missing. Pages will automatically use parquet-backed reads when available.")
-
-display_frame = status_frame.copy()
-if not display_frame.empty and "status" in display_frame.columns:
-    display_frame["status"] = display_frame["status"].map(status_label)
-st.dataframe(display_frame, use_container_width=True, hide_index=True)
-
-st.caption("Use the sidebar to navigate analysis pages.")
+lead_left, lead_right = st.columns([1.2, 1], vertical_alignment="center")
+with lead_left:
+    st.subheader("Start here")
+    st.markdown("Use the story flow in the sidebar, or jump directly:")
+    st.page_link("pages/01_Story_Overview.py", label="Story Overview")
+    st.page_link("pages/02_Recurring_Hotspots.py", label="Recurring Hotspots")
+    st.page_link("pages/03_Time_Patterns.py", label="Time Patterns")
+with lead_right:
+    st.subheader("Deep dive")
+    st.page_link("pages/05_Drill_Down_Explorer.py", label="Drill-Down Explorer")
+    st.page_link("pages/06_Live_Alert_Alignment.py", label="Live Alert Alignment")
+    st.page_link("pages/07_QA_Methodology.py", label="QA / Methodology")

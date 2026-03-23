@@ -1,50 +1,42 @@
-# Dashboard Panel Descriptions (V2 Realignment)
+# Dashboard Panel Descriptions (V4 Storytelling Redesign)
 
 ## Runtime Lock
-- Dashboard runtime: Streamlit.
+- Dashboard runtime: Streamlit (`app/streamlit_app.py` + `app/pages/*`).
 - Query/storage runtime: DuckDB + Parquet fallback.
 - Spark excluded from MVP runtime.
 
-## Visible Panel Order
-| Sidebar order | Panel | Primary purpose | Main source(s) |
+## Story-First Sidebar Order
+| Sidebar order | Panel | Why it exists | Primary source(s) |
 |---|---|---|---|
-| 1 | Reliability Overview | Monthwise reliability trend with mode + year-range controls. | `gold_delay_events_core` |
-| 2 | Bus Route Ranking | Date-range bus route ranking with metric selector and scroll-safe Top N view. | `gold_route_time_metrics` |
-| 3 | Subway Station Ranking | Date-range subway station ranking with metric selector and scroll-safe Top N view. | `gold_station_time_metrics` |
-| 4 | Weekday Hour Heatmap | Raw temporal view with only frequency/min-delay-p90/min-gap-p90. | `gold_delay_events_core` |
-| 5 | Monthly Trends | Multi-entity monthly trend analysis. | `gold_route_time_metrics`, `gold_station_time_metrics` |
-| 6 | Cause Category Mix | Category composition with top-N mix + weekday/hour spread views. | `gold_delay_events_core` |
-| 7 | Live Alert Validation | Ops board for selector quality and snapshot capture behavior. | `gold_alert_validation` |
-| 8 | Spatial Hotspot Map | Interactive hotspot map with subway + provisional bus mode. | `gold_spatial_hotspot`, `gold_route_time_metrics`, `bridge_route_direction_stop` |
-| 9 | Bus Reliability Drill-Down | Guided route-first drill story. | `gold_route_time_metrics`, `gold_delay_events_core` |
-| 10 | Subway Reliability Drill-Down | Guided station-first drill story. | `gold_station_time_metrics`, `gold_top_offender_ranking` |
+| 1 | Story Overview | Frame the TTC Pulse argument in <2 minutes. | `gold_delay_events_core`, `gold_route_time_metrics`, `gold_station_time_metrics` |
+| 2 | Recurring Hotspots | Show where recurring risk concentrates (routes/stations + spatial context). | `gold_route_time_metrics`, `gold_station_time_metrics`, `gold_spatial_hotspot`, `bridge_route_direction_stop` |
+| 3 | Time Patterns | Show when disruptions recur (weekday-hour + monthly support trend). | `gold_delay_events_core`, `gold_route_time_metrics`, `gold_station_time_metrics` |
+| 4 | Cause Signatures | Show why hotspots fail (dominant incident categories over time). | `gold_delay_events_core` |
+| 5 | Drill-Down Explorer | Route-first/station-first deep dive for one selected hotspot. | `gold_route_time_metrics`, `gold_station_time_metrics` |
+| 6 | Live Alert Alignment | Validate historical hotspot story against live GTFS-RT alert outcomes. | `gold_alert_validation`, `gold_linkage_quality` |
+| 7 | QA / Methodology | Expose trust diagnostics without cluttering core story pages. | `gold_linkage_quality`, Gold table snapshots |
 
-## Explicit V2 Changes
-- Linkage QA page was removed from active sidebar navigation and archived at `app/pages_archive/01_Linkage_QA.py`.
-- Home shell proposal-misaligned runtime copy was removed.
-- Ranking pages now use calendar date ranges and compute rankings on demand over selected windows.
-- Weekday heatmap no longer exposes composite/cause-mix metric toggles.
-- Live alerts page now follows an operations-board layout.
-- Spatial page now supports `bus` mode as provisional route-centroid mapping and labels confidence caveat inline.
+## Archived Pages (V3 -> V4)
+- V3 operational pages were moved to `app/pages_archive/v3_pre_v4/`.
+- Purpose: preserve rollback while enforcing the reduced v4 narrative structure.
 
-## Metric Selector Contract
-- Ranking and drill pages still expose:
-  - `Composite Score`
-  - `Frequency`
-  - `Severity`
-  - `Regularity`
-  - `Cause Mix`
-- Composite behavior remains unchanged when selected.
-- At fine granularity where composite is unstable, drill pages fall back to interpretable raw metrics and show inline explanation.
+## Presentation vs Exploration Contract
+- Every page supports:
+  - `Presentation` mode: concise narrative, fewer controls, minimal tables.
+  - `Exploration` mode: deeper controls, expanded supporting tables/charts.
+- Story flow in presentation mode is optimized for a <10 minute walkthrough.
 
-## Heatmap Metric Contract
-- Weekday heatmap metric selector is intentionally restricted to:
-  - `Frequency`
-  - `Min Delay P90`
-  - `Min Gap P90`
-- The heatmap is raw-stat oriented, not z-score/composite oriented.
+## Analytical Integrity Contract
+- Bus logic remains route-first (`route_id_gtfs`).
+- Subway logic remains station-first (`station_canonical`).
+- Composite views include component context:
+  - frequency
+  - severity_p90
+  - regularity_p90
+  - cause_mix_score
+- Date-window controls are explicit and page-global for each narrative panel.
 
-## Spatial Confidence Note
-- `subway` hotspots come from confidence-gated `gold_spatial_hotspot`.
-- `bus` hotspots are provisional route-centroid points computed from GTFS bridge geometry and route metrics.
-- Bus map is for pattern directionality, not precise incident localization.
+## Caveat Visibility Rules
+- Bus spatial context remains provisional route-centroid mapping and is labeled directionally.
+- Live alert outputs are validation context, not historical score inputs.
+- Empty-window or empty-source states must show clear no-data messaging and stop downstream rendering.

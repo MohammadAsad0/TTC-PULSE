@@ -24,6 +24,19 @@ GOLD_TABLE_FILES: dict[str, str] = {
 }
 
 
+def _debug_errors_enabled() -> bool:
+    value = os.getenv("TTC_PULSE_DEBUG_ERRORS")
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _safe_error_message(context: str, table_name: str, exc: Exception) -> str:
+    if _debug_errors_enabled():
+        return f"{context}: {type(exc).__name__}: {exc}"
+    return f"{context} for `{table_name}`. Enable debug flag `TTC_PULSE_DEBUG_ERRORS=1` for detailed traceback context."
+
+
 @dataclass(frozen=True)
 class QueryResult:
     """Container for table-backed query results."""
@@ -192,7 +205,7 @@ def query_table(
             status="error",
             source="error",
             row_count=0,
-            message=f"Query execution failed: {type(exc).__name__}: {exc}",
+            message=_safe_error_message("Query execution failed", table_name, exc),
             frame=pd.DataFrame(),
         )
     finally:
@@ -228,7 +241,7 @@ def get_table_snapshot(table_name: str, db_path: str | Path | None = None) -> Ta
             status="error",
             source="error",
             row_count=0,
-            message=f"Snapshot failed: {type(exc).__name__}: {exc}",
+            message=_safe_error_message("Snapshot failed", table_name, exc),
         )
     finally:
         connection.close()

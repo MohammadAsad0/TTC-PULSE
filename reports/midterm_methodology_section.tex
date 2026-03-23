@@ -1,0 +1,151 @@
+\section{Methodology}
+
+Our methodology is designed to analyze TTC reliability as a spatiotemporal pattern rather than a single KPI. The workflow integrates historical delay logs, GTFS reference data, and GTFS-Realtime service alerts into a layered analytics pipeline and a stakeholder-facing dashboard.
+
+\subsection{Approach Overview}
+The overall approach has six stages:
+\begin{enumerate}
+    \item Ingest historical bus/subway delay data, static GTFS, and live GTFS-RT service alerts.
+    \item Standardize schemas and canonicalize noisy route/station identifiers.
+    \item Build mode-specific analytical units (route-first for bus, station-first for subway).
+    \item Aggregate disruptions across time windows (year/month/weekday/hour bins).
+    \item Compute explainable reliability metrics and composite rankings.
+    \item Validate historical hotspots using live GTFS-RT alert alignment.
+\end{enumerate}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+    node distance=0.45cm and 0.65cm,
+    box/.style={
+        rectangle,
+        rounded corners,
+        draw=black,
+        thick,
+        align=center,
+        minimum width=2.2cm,
+        minimum height=0.8cm,
+        fill=gray!5
+    },
+    arrow/.style={
+        -{Latex[length=2mm]},
+        thick
+    }
+]
+
+\node[box] (hist) {Historical\\Delay Logs};
+\node[box, right=of hist] (gtfs) {Static\\GTFS};
+\node[box, right=of gtfs] (alerts) {GTFS-RT\\Service Alerts};
+
+\node[box, below=of gtfs] (clean) {Clean \&\\Normalize};
+\node[box, below=of clean] (agg) {Space-Time\\Aggregation};
+\node[box, below left=of agg] (metrics) {Reliability\\Metrics};
+\node[box, below right=of agg] (validation) {Live Alert\\Validation};
+
+\node[box, below=1.8cm of agg] (dash) {Linked Dashboard\\(Overview, Hotspots, Time, Causes, Drill-Down, Live)};
+
+\draw[arrow] (hist) -- (clean);
+\draw[arrow] (gtfs) -- (clean);
+\draw[arrow] (alerts) -- (clean);
+\draw[arrow] (clean) -- (agg);
+\draw[arrow] (agg) -- (metrics);
+\draw[arrow] (agg) -- (validation);
+\draw[arrow] (metrics) -- (dash);
+\draw[arrow] (validation) -- (dash);
+
+\end{tikzpicture}
+\caption{TTC Pulse data-analytics architecture: ingestion, canonicalization, aggregation, reliability scoring, and live-alert validation feeding the dashboard.}
+\label{fig:ttc-architecture}
+\end{figure}
+
+\subsection{Data-Analytics Methodology}
+\textbf{Data preparation and normalization.}
+Historical delay events are transformed into a canonical event structure with service date/time, mode, route or station context, incident category, and operational measures (\texttt{Min Delay}, \texttt{Min Gap}). GTFS dimensions are used as a reference layer to standardize route/station identity and preserve consistency across analytical views.
+
+\textbf{Spatiotemporal analysis design.}
+We aggregate by entity and time to answer ``where'', ``when'', and ``how often'' disruptions recur. Temporal views include yearly, monthly, weekday, and hour-bin slices. This is appropriate for TTC reliability because recurrence patterns are strongly schedule- and period-dependent.
+
+\textbf{Reliability metric framework.}
+For each entity $u$ in time window $t$, we compute:
+\begin{itemize}
+    \item \textbf{Frequency} ($F$): incident recurrence volume,
+    \item \textbf{Severity} ($\mathrm{Sev}_{90}$): upper-tail delay behavior,
+    \item \textbf{Regularity} ($\mathrm{Reg}_{90}$): upper-tail gap/headway irregularity,
+    \item \textbf{Cause Mix} ($C$): disruption cause composition signal.
+\end{itemize}
+
+Cause mix is computed from category concentration using:
+\[
+C(u,t)=1-\sum_{k} p_k(u,t)^2,
+\]
+where $p_k$ is the share of category $k$ within entity-time slice $(u,t)$.
+
+For ranking, we use the implemented composite formula:
+\[
+S(u,t)=0.35\,z(F)+0.30\,z(\mathrm{Sev}_{90})+0.20\,z(\mathrm{Reg}_{90})+0.15\,C.
+\]
+The z-score normalization for each metric $x$ is:
+\[
+z(x)=\frac{x-\mu_x}{\sigma_x},
+\]
+computed within the peer comparison set (same mode/date-window context). If $\sigma_x=0$, the implementation safely falls back to zero contribution for that standardized term. The dashboard always exposes component metrics beside the composite score.
+
+\subsection{Data-Analytics Architecture}
+The implementation follows a local-first layered architecture:
+\begin{itemize}
+    \item \textbf{Raw/Bronze}: ingestion and lineage-preserving storage,
+    \item \textbf{Silver}: canonical dimensions, bridges, review queues, normalized facts,
+    \item \textbf{Gold}: stakeholder marts for reliability metrics, rankings, temporal profiles, and alert validation.
+\end{itemize}
+
+Runtime stack:
+\begin{itemize}
+    \item \textbf{Storage/Query}: DuckDB + Parquet,
+    \item \textbf{Serving}: Streamlit dashboard,
+    \item \textbf{Live capture}: GTFS-RT service-alert sidecar scheduled every 30 minutes (local OS scheduler).
+\end{itemize}
+
+\textbf{Why we shifted from Airflow to local OS scheduling.}
+Based on course-scope guidance discussed with the instructor (keep deployment reproducible on student laptops and avoid server-grade operational dependencies), we moved from Airflow-first orchestration to local OS-native scheduling (\texttt{launchd} on macOS and Task Scheduler on Windows). The key reasons were:
+\begin{itemize}
+    \item only one recurring production task was needed (30-minute alert sidecar cycle),
+    \item Airflow introduces extra runtime services (scheduler/webserver/metadata DB) that are disproportionate for this scope,
+    \item local schedulers improve teammate portability and reduce setup/maintenance overhead,
+    \item this choice preserves focus on analytics quality rather than infrastructure operations.
+\end{itemize}
+Airflow DAGs are retained as legacy/reference artifacts, but active execution for this project milestone is local-first.
+
+\subsection{Algorithms and Implemented Components}
+\textbf{(1) Canonicalization strategy.}
+Bus analytics use route-first canonicalization and subway analytics use station-first canonicalization. Ambiguous/unmatched mappings are retained in review-oriented tables instead of being silently dropped.
+
+\textbf{(2) Windowed ranking aggregation.}
+For selected service-date windows, rankings are recomputed from metrics marts using windowed aggregation and rank ordering on composite score (with frequency as tie-break context).
+
+\textbf{(3) Alert-hotspot alignment.}
+Let $H_K$ be historical top-$K$ hotspots and $A$ be live alerts in a validation window. We compute:
+\[
+\mathrm{HitRate}=\frac{1}{|A|}\sum_{a \in A}\mathbf{1}[a \in H_K],
+\qquad
+\mathrm{Lift}=\frac{\mathrm{HitRate}}{\mathrm{BaselineHitRate}}.
+\]
+This bridges descriptive historical analysis with live operational validation.
+
+\subsection{Midterm Implementation Status}
+At midterm, core data contracts and dashboard flows are operational, including:
+\begin{itemize}
+    \item integrated historical bus/subway reliability marts,
+    \item multi-page analytical dashboard with date-windowed exploration,
+    \item live GTFS-RT alert ingestion sidecar and alignment mart population.
+\end{itemize}
+\textbf{Scope expansion note (streetcar).}
+To expand beyond the initial bus/subway focus, we have started streetcar integration at the data-model level (GTFS route-type support and mapping groundwork). Full streetcar reliability marts and dashboard exposure are in progress and are planned for the next project phase.
+Remaining work is focused on deeper statistical validation (significance/sensitivity analysis), robustness checks, and final report-quality presentation of results.
+
+\subsection{Limitations}
+\begin{itemize}
+    \item Cause-mix signal is less stable in very fine-grain slices.
+    \item GTFS-RT selector sparsity can reduce exact entity-match confidence.
+    \item Spatial certainty is stronger for canonical subway stations than for bus route-centroid approximations.
+    \item Composite ranking interpretation requires component-metric visibility to avoid over-reliance on a single score.
+\end{itemize}

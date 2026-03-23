@@ -20,7 +20,7 @@ Out of scope:
 ## Runtime Lock
 - Data engine: DuckDB (`data/ttc_pulse.duckdb`) with Parquet artifacts by layer.
 - Delivery runtime: Streamlit (`app/streamlit_app.py` + pages).
-- Scheduler boundary: alerts side-car cadence at 30 minutes.
+- Scheduler boundary: local side-car cadence at 30 minutes (launchd on macOS, Windows Task Scheduler on Windows).
 - Spark remains excluded.
 
 ## Layer Status
@@ -30,8 +30,8 @@ Out of scope:
 | Bronze | Row-preserving extraction with lineage | Implemented in DuckDB Step 1 build flow |
 | Silver | Canonical dims/bridge/reviews/events/facts | Implemented as Parquet outputs and DuckDB-registrable tables |
 | Gold | Stakeholder marts for reliability and validation | Implemented as Parquet outputs with run logs |
-| Dashboard | Consumption of Gold marts | Streamlit analysis pages for Reliability Overview, Bus Route Ranking, Subway Station Ranking, Weekday Hour Heatmap, Monthly Trends, Cause Category Mix, Live Alert Validation, Spatial Hotspot Map, Bus Reliability Drill-Down, and Subway Reliability Drill-Down; Linkage QA is archived outside visible navigation |
-| Scheduler | GTFS-RT side-car | Side-car DAG plus placeholder DAG coexist; hooks partially pending |
+| Dashboard | Consumption of Gold marts | Streamlit storytelling-first pages: Story Overview, Recurring Hotspots, Time Patterns, Cause Signatures, Drill-Down Explorer, Live Alert Alignment, and QA/Methodology; prior V3 pages archived for rollback |
+| Scheduler | GTFS-RT side-car | Local schedulers are active (`launchd` on macOS; Windows Task Scheduler script for Windows); Airflow DAGs retained only as legacy reference |
 
 ## Architecture Invariants
 - Raw and Bronze preserve traceability; unresolved mappings are retained, not dropped.

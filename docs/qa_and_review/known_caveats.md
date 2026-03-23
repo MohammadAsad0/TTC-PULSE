@@ -51,3 +51,16 @@ Incident normalization:
 - Live Alert Validation is now an operations board; snapshot timestamps are capture context only and must not be interpreted as forecast horizons.
 - Spatial bus hotspots are provisional route-centroid estimates derived from GTFS bridge geometry and route metrics.
 - The spatial page uses a 1 to 69 Top N bound because the current subway hotspot table contains 69 mapped rows.
+
+## Security Posture Modes (Course Project)
+- Local development mode:
+  - Intended default for contributors running on their own machine.
+  - No full in-app auth gate is required for this mode.
+  - Must remain local-only (`localhost` binding, no public tunnel by default).
+- Shared/demo mode:
+  - Used for small evaluator/professor demos on controlled networks.
+  - Keep host exposure limited (private network, temporary tunnel with access restriction, or classroom-controlled host).
+  - Browser-visible errors must remain sanitized (no stack traces or file paths).
+- Public deployment mode:
+  - Not supported under current course-scope security posture without adding an external authentication layer.
+  - If public exposure is required later, minimum requirement is a front-door auth gateway plus production hardening before release.

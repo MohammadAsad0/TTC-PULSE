@@ -11,10 +11,10 @@ DD-002: Dashboard runtime
 - Rationale: Strong velocity for explainable analytics-first UI.
 - Consequence: Prioritizes transparent metric views over custom front-end complexity.
 
-DD-003: Scheduler scope (Airflow side-car)
-- Decision: Keep exactly one Airflow DAG for GTFS-RT Service Alerts polling on a 30-minute cadence.
-- Rationale: Alerts ingestion is the only cadence-sensitive workload in current scope.
-- Consequence: Silver/Gold historical materialization remains outside Airflow in Step 3.
+DD-003: Scheduler scope (local-first side-car)
+- Decision: Use local OS-native schedulers for GTFS-RT Service Alerts side-car cadence (`launchd` on macOS, Windows Task Scheduler on Windows) at 30-minute intervals.
+- Rationale: Project is local-first and not moving to server-grade orchestration; Airflow runtime overhead is unnecessary for one recurring job.
+- Consequence: Side-car scheduling remains lightweight and portable across teammate operating systems while Silver/Gold historical materialization remains manual.
 
 DD-004: Layering and traceability
 - Decision: Preserve Raw immutable, Bronze row-preserving with lineage, and retain unresolved mappings in Silver.
@@ -86,8 +86,14 @@ DD-017: Provisional bus hotspots
 - Rationale: The spatial story is still useful for buses, but the evidence is weaker than subway station hotspots.
 - Consequence: Bus hotspots are directional and exploratory, not final geospatial truth.
 
+DD-018: Security posture by deployment mode (course-scope)
+- Decision: Do not ship a full in-app authentication system for the course project; instead document and enforce operating modes (`local development`, `shared/demo`, `public deployment`) with explicit handling guidance.
+- Rationale: The dashboard is primarily academic and local-first, and full IAM would add complexity beyond MVP scope.
+- Consequence: Security responsibility shifts to deployment context controls; local mode remains open by design, shared/demo mode must use restricted access boundaries, and public mode is explicitly unsupported without adding an external auth gateway.
+
 ## Deferred to Step 4+
 - Production scheduling for Silver/Gold transform jobs and dependency chaining.
 - Hotspot release decision after confidence-gate thresholds are met and documented.
 - Postgres/PostGIS serving tier if multi-user API requirements emerge.
 - Trip-level GTFS-RT validation once selector coverage improves.
+- Full in-app authentication and role-based access controls for public multi-user deployments.

@@ -19,12 +19,12 @@ default_args = {"owner": "ttc_pulse"}
 
 with DAG(
     dag_id="ttc_gtfsrt_alerts_pipeline",
-    description="Minimal 30-minute TTC GTFS-RT alerts pipeline scaffold.",
+    description="Legacy TTC GTFS-RT alerts scaffold (disabled schedule).",
     default_args=default_args,
     start_date=datetime(2026, 1, 1),
-    schedule_interval="*/30 * * * *",
+    schedule_interval=None,
     catchup=False,
-    tags=["ttc", "gtfsrt", "alerts"],
+    tags=["ttc", "gtfsrt", "alerts", "legacy"],
 ) as dag:
     poll_alerts = PythonOperator(
         task_id="poll_alerts",

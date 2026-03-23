@@ -1,45 +1,48 @@
-# Airflow DAG (GTFS-RT Alerts Side-Car, Step 3)
+# Airflow DAG (GTFS-RT Alerts Side-Car, Legacy Reference)
 
 ## Purpose
-Define the approved Airflow side-car that handles cadence-sensitive GTFS-RT Service Alerts ingestion without taking ownership of the full historical batch pipeline.
+Document the retained Airflow DAG contract as a legacy reference. Local runtime scheduling now uses OS-native schedulers (`launchd` on macOS and Windows Task Scheduler on Windows).
 
-## Scope Lock
-- Exactly one DAG: `ttc_gtfsrt_alerts_pipeline`.
+## Legacy DAG Contract
+- Primary DAG: `poll_gtfsrt_alerts` (`airflow/dags/poll_gtfsrt_alerts.py`).
 - Schedule: every 30 minutes (`*/30 * * * *`).
+- Start date: `2026-03-17`.
+- Catchup: `False` (no historical backfill replay).
 - Feed scope: GTFS-RT Service Alerts only.
-- Explicitly out of scope: Vehicle Positions, Trip Updates, and historical Silver/Gold batch orchestration.
-- `catchup=False` to avoid backfill replay unless intentionally implemented later.
+- Explicitly out of scope: Vehicle Positions, Trip Updates, and full Bronze/Silver/Gold orchestration.
 
-## Current Repository Status
-- DAG scaffold exists at `airflow/dags/ttc_gtfsrt_alerts_pipeline.py`.
-- Current DAG contains placeholder tasks (`poll_alerts`, `process_alerts`) and tags.
-- Start date and cadence are configured; production dataflow logic is pending.
+## Task Flow
+1. `poll_service_alerts`
+- Calls `ttc_pulse.alerts.poll_service_alerts.run_poll_service_alerts`.
+- Default behavior in DAG is live polling (`allow_network=True`) unless overridden by environment variables.
+- Registers raw snapshot rows into `alerts/raw_snapshots/manifest.csv`.
+- Writes operational rows into `logs/step3_alerts_sidecar_log.csv`.
 
-## Side-Car Task Contract (Target)
-1. `poll_alerts`
-- Fetch TTC GTFS-RT Service Alerts snapshot with timeout/retry policy.
+2. `parse_entities`
+- Parses only the produced snapshot path from the poll task (no EDA backfill scanning in DAG mode).
+- Uses append/dedupe output mode so repeated runs do not overwrite prior parsed history.
+- Writes/updates:
+  - `alerts/parsed/service_alert_entities.csv`
+  - `alerts/parsed/parse_manifest.csv`
+  - `alerts/parsed/parse_summary.json`
+  - side-car log rows in `logs/step3_alerts_sidecar_log.csv`
 
-2. `persist_raw_snapshot`
-- Persist raw protobuf payload with deterministic `snapshot_ts`.
+3. `hook_fact_normalization` (placeholder hook)
+4. `hook_gold_alert_validation_refresh` (placeholder hook)
 
-3. `parse_informed_entities`
-- Flatten alert selectors and entity payload into structured records.
+## Environment Controls
+- `TTC_PULSE_ALERTS_ALLOW_NETWORK` (default `true` in DAG)
+- `TTC_PULSE_ALERTS_DRY_RUN` (default `false`)
+- `TTC_PULSE_ALERTS_TEST_MODE` (default `false`)
 
-4. `validate_selectors_vs_gtfs`
-- Validate route/stop selectors against static GTFS dimensions.
+## Operational Guarantees
+- Raw snapshot manifest is append-only.
+- Parsed outputs are append-oriented with snapshot-level dedupe to avoid duplicate re-parsing.
+- Side-car log records poll, registration, and parse outcomes with timestamped status rows.
 
-5. `upsert_alert_facts_and_marts`
-- Upsert `silver.fact_gtfsrt_alerts_norm` and `gold.gold_alert_validation`.
+## Backfill Policy
+- Historical GTFS-RT backfill before `2026-03-17` is not attempted by default.
+- Forward capture starts now and continues on the 30-minute schedule.
 
-6. `log_run_metrics`
-- Emit run metrics (row counts, parse/validation failures, selector coverage, runtime).
-
-## Operational Contracts
-- Idempotent writes keyed by snapshot timestamp and alert identifiers.
-- Structured run logs for failure visibility and selector-quality trend monitoring.
-- Raw snapshots are append-only; no destructive rewrite of prior snapshots.
-- DAG is a side-car, not a controller for the broader Bronze/Silver/Gold dependency graph.
-
-## Step 3 Caveats and Step 4 Handoff
-- Step 3 keeps the side-car contract and cadence fixed while implementation remains scaffold-level.
-- Step 4 will replace placeholders with production operators and connect outputs to downstream quality and dashboard validation workflows.
+## Legacy Scaffold
+- `airflow/dags/ttc_gtfsrt_alerts_pipeline.py` remains as a minimal scaffold artifact, is unscheduled (`schedule_interval=None`), and is not the active side-car flow.

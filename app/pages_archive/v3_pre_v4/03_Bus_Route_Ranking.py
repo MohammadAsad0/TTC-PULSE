@@ -32,7 +32,7 @@ from ttc_pulse.dashboard.loaders import query_table
 
 
 @st.cache_data(ttl=120)
-def _load_bus_date_bounds():
+def _load_bus_coverage_window():
     return query_table(
         table_name="gold_route_time_metrics",
         query_template="""
@@ -40,7 +40,7 @@ def _load_bus_date_bounds():
             MIN(service_date) AS min_service_date,
             MAX(service_date) AS max_service_date
         FROM {source}
-        WHERE LOWER(mode) = 'bus'
+        WHERE mode = 'bus'
             AND route_id_gtfs IS NOT NULL
             AND service_date IS NOT NULL
         """,
@@ -48,7 +48,7 @@ def _load_bus_date_bounds():
 
 
 @st.cache_data(ttl=120)
-def _load_bus_route_rankings(start_date: date, end_date: date):
+def _load_bus_route_rankings(start_date: str, end_date: str):
     return query_table(
         table_name="gold_route_time_metrics",
         query_template="""
@@ -60,8 +60,9 @@ def _load_bus_route_rankings(start_date: date, end_date: date):
                 quantile_cont(regularity_p90, 0.9) FILTER (WHERE regularity_p90 IS NOT NULL) AS regularity_p90,
                 AVG(cause_mix_score) FILTER (WHERE cause_mix_score IS NOT NULL) AS cause_mix_score
             FROM {source}
-            WHERE LOWER(mode) = 'bus'
+            WHERE mode = 'bus'
                 AND route_id_gtfs IS NOT NULL
+                AND service_date IS NOT NULL
                 AND service_date BETWEEN ? AND ?
             GROUP BY 1
         ),
@@ -72,35 +73,22 @@ def _load_bus_route_rankings(start_date: date, end_date: date):
                 severity_p90,
                 regularity_p90,
                 COALESCE(cause_mix_score, 0.0) AS cause_mix_score,
-                (frequency - AVG(frequency) OVER()) / NULLIF(STDDEV_POP(frequency) OVER(), 0.0) AS z_freq,
-                (severity_p90 - AVG(severity_p90) OVER()) / NULLIF(STDDEV_POP(severity_p90) OVER(), 0.0) AS z_sev,
-                (regularity_p90 - AVG(regularity_p90) OVER()) / NULLIF(STDDEV_POP(regularity_p90) OVER(), 0.0) AS z_reg,
-                (COALESCE(cause_mix_score, 0.0) - AVG(COALESCE(cause_mix_score, 0.0)) OVER())
-                    / NULLIF(STDDEV_POP(COALESCE(cause_mix_score, 0.0)) OVER(), 0.0) AS z_cause
+                (
+                    0.35 * COALESCE((frequency - AVG(frequency) OVER()) / NULLIF(STDDEV_SAMP(frequency) OVER(), 0.0), 0.0)
+                    + 0.30 * COALESCE((severity_p90 - AVG(severity_p90) OVER()) / NULLIF(STDDEV_SAMP(severity_p90) OVER(), 0.0), 0.0)
+                    + 0.20 * COALESCE((regularity_p90 - AVG(regularity_p90) OVER()) / NULLIF(STDDEV_SAMP(regularity_p90) OVER(), 0.0), 0.0)
+                    + 0.15 * COALESCE(cause_mix_score, 0.0)
+                ) AS composite_score
             FROM route_agg
         )
         SELECT
             route_id,
+            RANK() OVER (ORDER BY composite_score DESC NULLS LAST, frequency DESC) AS rank_position,
             CAST(frequency AS BIGINT) AS frequency,
             severity_p90,
             regularity_p90,
             cause_mix_score,
-            (
-                0.35 * COALESCE(z_freq, 0.0) +
-                0.30 * COALESCE(z_sev, 0.0) +
-                0.20 * COALESCE(z_reg, 0.0) +
-                0.15 * COALESCE(z_cause, 0.0)
-            ) AS composite_score,
-            RANK() OVER (
-                ORDER BY
-                    (
-                        0.35 * COALESCE(z_freq, 0.0) +
-                        0.30 * COALESCE(z_sev, 0.0) +
-                        0.20 * COALESCE(z_reg, 0.0) +
-                        0.15 * COALESCE(z_cause, 0.0)
-                    ) DESC,
-                    frequency DESC
-            ) AS rank_position
+            composite_score
         FROM scored
         ORDER BY rank_position ASC, route_id
         """,
@@ -108,36 +96,66 @@ def _load_bus_route_rankings(start_date: date, end_date: date):
     )
 
 
+def _normalize_date_range(selection: object, min_date: date, max_date: date) -> tuple[date, date]:
+    if isinstance(selection, tuple) and len(selection) == 2:
+        start_date, end_date = selection
+    else:
+        start_date = end_date = selection if isinstance(selection, date) else min_date
+
+    if start_date is None:
+        start_date = min_date
+    if end_date is None:
+        end_date = max_date
+    if start_date > end_date:
+        start_date, end_date = end_date, start_date
+    return start_date, end_date
+
+
 st.title("Bus Route Ranking")
+st.caption("Source: `gold_route_time_metrics` (date-windowed recomputed ranking)")
 selected_metric_label = st.selectbox("Metric to analyze", options=METRIC_OPTIONS, index=0, key="bus_route_metric")
 
-bounds_result = _load_bus_date_bounds()
-if bounds_result.status in {"missing", "error"}:
-    st.error(bounds_result.message)
+coverage_result = _load_bus_coverage_window()
+if coverage_result.status in {"missing", "error"}:
+    st.error(coverage_result.message)
     st.stop()
-if bounds_result.status == "empty" or bounds_result.frame.empty:
-    st.info("No bus route date bounds are available.")
-    st.stop()
-
-bounds_row = bounds_result.frame.iloc[0]
-min_service_date = pd.to_datetime(bounds_row["min_service_date"]).date()
-max_service_date = pd.to_datetime(bounds_row["max_service_date"]).date()
-
-ctrl_a, ctrl_b, ctrl_c = st.columns([2, 2, 1])
-start_date = ctrl_a.date_input("Start date", value=min_service_date, min_value=min_service_date, max_value=max_service_date)
-end_date = ctrl_b.date_input("End date", value=max_service_date, min_value=min_service_date, max_value=max_service_date)
-top_n = int(ctrl_c.slider("Top N Routes", min_value=5, max_value=100, value=25, step=5))
-
-if start_date > end_date:
-    st.error("Start date must be on or before end date.")
+if coverage_result.status == "empty" or coverage_result.frame.empty:
+    st.info("No bus route rows with `service_date` are available.")
     st.stop()
 
-result = _load_bus_route_rankings(start_date=start_date, end_date=end_date)
+coverage_row = coverage_result.frame.iloc[0]
+min_service_date = pd.to_datetime(coverage_row["min_service_date"], errors="coerce")
+max_service_date = pd.to_datetime(coverage_row["max_service_date"], errors="coerce")
+if pd.isna(min_service_date) or pd.isna(max_service_date):
+    st.info("Service-date coverage is unavailable for bus route metrics.")
+    st.stop()
+
+min_date = min_service_date.date()
+max_date = max_service_date.date()
+
+date_selection = st.date_input(
+    "Service date range",
+    value=(min_date, max_date),
+    min_value=min_date,
+    max_value=max_date,
+    key="bus_route_date_range",
+)
+selected_start_date, selected_end_date = _normalize_date_range(date_selection, min_date=min_date, max_date=max_date)
+
+st.caption(
+    "Data coverage (`service_date`): "
+    f"{min_date:%Y-%m} to {max_date:%Y-%m} ({min_date:%Y-%m-%d} to {max_date:%Y-%m-%d}) | "
+    f"Selected: {selected_start_date:%Y-%m-%d} to {selected_end_date:%Y-%m-%d}"
+)
+
+top_n = st.slider("Top N Routes", min_value=5, max_value=100, value=25, step=5)
+
+result = _load_bus_route_rankings(selected_start_date.isoformat(), selected_end_date.isoformat())
 if result.status in {"missing", "error"}:
     st.error(result.message)
     st.stop()
 if result.status == "empty":
-    st.info("No bus route rows were found for the selected date range.")
+    st.info("No bus route rankings are available for the selected date range.")
     st.stop()
 
 filtered = result.frame.copy()
@@ -150,22 +168,26 @@ metric_title = metric_resolution.resolved_label
 composite_selected = metric_resolution.requested_label == "Composite Score" and metric_column == "composite_score"
 
 if composite_selected:
-    filtered = filtered.sort_values("rank_position").head(top_n).reset_index(drop=True)
-    chart_title = "Bus Routes by Composite Reliability Risk Score"
+    filtered = filtered.sort_values(["rank_position", "route_id"]).head(top_n)
+    chart_title = (
+        "Bus Routes by Composite Reliability Risk Score "
+        f"({selected_start_date:%Y-%m-%d} to {selected_end_date:%Y-%m-%d})"
+    )
 else:
-    filtered = filtered.sort_values([metric_column, "rank_position"], ascending=[False, True]).head(top_n).reset_index(drop=True)
-    filtered["rank_position"] = range(1, len(filtered) + 1)
-    chart_title = metric_chart_title("Bus Routes", metric_title)
+    filtered = filtered.sort_values([metric_column, "rank_position"], ascending=[False, True]).head(top_n)
+    chart_title = (
+        f"{metric_chart_title('Bus Routes', metric_title)} "
+        f"({selected_start_date:%Y-%m-%d} to {selected_end_date:%Y-%m-%d})"
+    )
 
 kpi_a, kpi_b, kpi_c = st.columns(3)
-kpi_a.metric("Date Range", f"{fmt_date(start_date)} to {fmt_date(end_date)}")
+kpi_a.metric("Selected Window", f"{fmt_date(selected_start_date)} to {fmt_date(selected_end_date)}")
 kpi_b.metric("Routes Displayed", fmt_int(len(filtered)))
-kpi_c.metric(
-    "Top Composite Score" if composite_selected else f"Top {metric_title}",
-    fmt_int(filtered[metric_column].max()) if metric_title == "Frequency" else fmt_float(filtered[metric_column].max(), digits=3),
-)
+metric_value = filtered[metric_column].max()
+kpi_label = "Top Composite Score" if composite_selected else f"Top {metric_title}"
+metric_formatter = fmt_int if metric_title == "Frequency" else fmt_float
+kpi_c.metric(kpi_label, metric_formatter(metric_value, digits=3) if metric_formatter is fmt_float else metric_formatter(metric_value))
 
-chart_height = max(360, min(2200, 26 * max(len(filtered), 1)))
 chart = (
     alt.Chart(filtered)
     .mark_bar()
@@ -183,11 +205,9 @@ chart = (
             "composite_score:Q",
         ],
     )
-    .properties(title=chart_title, height=chart_height)
+    .properties(title=chart_title, height=360)
 )
-
-with st.container(height=640):
-    st.altair_chart(chart, use_container_width=True)
+st.altair_chart(chart, use_container_width=True)
 
 display_frame = filtered[
     [
@@ -200,5 +220,4 @@ display_frame = filtered[
         "composite_score",
     ]
 ].copy()
-display_frame = display_frame.sort_values("rank_position")
 st.dataframe(display_frame, use_container_width=True, hide_index=True)

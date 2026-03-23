@@ -31,7 +31,7 @@ def _poll_service_alerts_task(**_: Any) -> dict[str, Any]:
     _ensure_src_on_pythonpath()
     from ttc_pulse.alerts.poll_service_alerts import run_poll_service_alerts
 
-    allow_network = _bool_from_env("TTC_PULSE_ALERTS_ALLOW_NETWORK", default=False)
+    allow_network = _bool_from_env("TTC_PULSE_ALERTS_ALLOW_NETWORK", default=True)
     dry_run = _bool_from_env("TTC_PULSE_ALERTS_DRY_RUN", default=False)
     test_mode = _bool_from_env("TTC_PULSE_ALERTS_TEST_MODE", default=False)
 
@@ -39,20 +39,8 @@ def _poll_service_alerts_task(**_: Any) -> dict[str, Any]:
         allow_network=allow_network,
         dry_run=dry_run,
         test_mode=test_mode,
-        register_manifest=False,
+        register_manifest=True,
     )
-
-
-def _register_raw_snapshot_task(**context: Any) -> dict[str, Any]:
-    _ensure_src_on_pythonpath()
-    from ttc_pulse.alerts.poll_service_alerts import register_raw_snapshot_record
-
-    poll_result = context["ti"].xcom_pull(task_ids="poll_service_alerts") or {}
-    project_root = Path(__file__).resolve().parents[2]
-    manifest_path = project_root / "alerts" / "raw_snapshots" / "manifest.csv"
-    registration = register_raw_snapshot_record(poll_result=poll_result, manifest_path=manifest_path)
-    registration["status"] = "ok"
-    return registration
 
 
 def _parse_entities_task(**context: Any) -> dict[str, Any]:
@@ -62,12 +50,22 @@ def _parse_entities_task(**context: Any) -> dict[str, Any]:
     poll_result = context["ti"].xcom_pull(task_ids="poll_service_alerts") or {}
     output_path = str(poll_result.get("output_path") or "").strip()
 
-    snapshot_paths = None
+    snapshot_paths: list[Path] = []
     if output_path:
         path = Path(output_path)
         if path.exists():
             snapshot_paths = [path]
-    return parse_local_service_alert_snapshots(snapshot_paths=snapshot_paths)
+    if not snapshot_paths:
+        return {
+            "status": "skipped_no_snapshot",
+            "details": "No snapshot produced by poll task; parse step skipped.",
+        }
+
+    return parse_local_service_alert_snapshots(
+        snapshot_paths=snapshot_paths,
+        include_eda_snapshots=False,
+        append_outputs=True,
+    )
 
 
 def _fact_normalization_hook_task(**_: Any) -> dict[str, Any]:
@@ -90,9 +88,9 @@ default_args = {"owner": "ttc_pulse"}
 
 with DAG(
     dag_id="poll_gtfsrt_alerts",
-    description="30-minute Service Alerts side-car flow: poll, register, parse, and hook refresh steps.",
+    description="30-minute Service Alerts side-car flow: poll, parse, and hook refresh steps.",
     default_args=default_args,
-    start_date=datetime(2026, 3, 1),
+    start_date=datetime(2026, 3, 17),
     schedule_interval="*/30 * * * *",
     catchup=False,
     tags=["ttc", "gtfsrt", "alerts", "sidecar"],
@@ -100,11 +98,6 @@ with DAG(
     poll_service_alerts = PythonOperator(
         task_id="poll_service_alerts",
         python_callable=_poll_service_alerts_task,
-    )
-
-    register_raw_snapshot = PythonOperator(
-        task_id="register_raw_snapshot",
-        python_callable=_register_raw_snapshot_task,
     )
 
     parse_entities = PythonOperator(
@@ -124,7 +117,6 @@ with DAG(
 
     (
         poll_service_alerts
-        >> register_raw_snapshot
         >> parse_entities
         >> hook_fact_normalization
         >> hook_gold_alert_validation_refresh

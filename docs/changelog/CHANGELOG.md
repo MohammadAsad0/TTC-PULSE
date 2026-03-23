@@ -1,5 +1,55 @@
 # CHANGELOG
 
+## 2026-03-23 - V4 Storytelling Redesign + Live Alerts 30-Minute Forward Capture
+
+### Added
+- `app/pages/01_Story_Overview.py`
+- `app/pages/02_Recurring_Hotspots.py`
+- `app/pages/03_Time_Patterns.py`
+- `app/pages/04_Cause_Signatures.py`
+- `app/pages/05_Drill_Down_Explorer.py`
+- `app/pages/06_Live_Alert_Alignment.py`
+- `app/pages/07_QA_Methodology.py`
+- `app/pages_archive/v3_pre_v4/` (local fallback archive of prior dashboard pages)
+- `src/ttc_pulse/dashboard/storytelling.py`
+- `docs/changelog/agent_run_logs/storytelling_redesign.md`
+- `docs/changelog/agent_run_logs/alerts_30min_ingestion_run.md`
+- `docs/changelog/agent_run_logs/scheduler_launchd_migration.md`
+- `scripts/alerts/run_sidecar_cycle.sh`
+- `scripts/alerts/install_launchd_scheduler.sh`
+- `scripts/alerts/uninstall_launchd_scheduler.sh`
+- `scripts/alerts/run_sidecar_cycle.ps1`
+- `scripts/alerts/install_windows_scheduler.ps1`
+- `scripts/alerts/uninstall_windows_scheduler.ps1`
+- `src/ttc_pulse/alerts/run_sidecar_cycle.py`
+- `docs/pipelines/scheduler_ops.md`
+
+### Updated
+- `app/streamlit_app.py`
+- `src/ttc_pulse/dashboard/__init__.py`
+- `airflow/dags/poll_gtfsrt_alerts.py`
+- `src/ttc_pulse/alerts/poll_service_alerts.py`
+- `src/ttc_pulse/alerts/parse_service_alerts.py`
+- `docs/runbook.md`
+- `docs/pipelines/airflow_dag.md`
+- `docs/architecture/data_flow.md`
+- `docs/architecture/overview.md`
+- `docs/decisions/design_decisions.md`
+- `docs/README.md`
+- `docs/dashboard/panel_descriptions.md`
+- `docs/dashboard/ux_decisions.md`
+- `docs/qa_and_review/known_caveats.md`
+- `docs/decisions/design_decisions.md`
+
+### Summary
+- Replaced the prior multi-page exploratory dashboard with a reduced, storytelling-first v4 narrative flow and explicit presentation vs exploration mode controls.
+- Kept drill depth while reducing page clutter and strengthening page-to-page stakeholder transitions.
+- Locked GTFS-RT side-car operations to forward-only 30-minute capture from `2026-03-17` with `catchup=False`.
+- Added operational logging for poll, raw-manifest registration, and parse steps in `logs/step3_alerts_sidecar_log.csv`.
+- Hardened parsed alert storage to append/dedupe behavior so recurring runs do not overwrite prior captured history.
+- Switched active scheduler strategy to local OS-native runtime (`launchd` on macOS; Windows Task Scheduler scripts for Windows) and kept Airflow docs/DAGs as legacy reference only.
+- Added explicit course-scope security posture modes (`local development`, `shared/demo`, `public deployment`) and documented that full in-app auth is intentionally deferred for MVP.
+
 ## 2026-03-19 - Codex Thread Recovery Documentation
 
 ### Added

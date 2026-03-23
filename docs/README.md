@@ -79,10 +79,16 @@ Live poll (network enabled):
 PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.alerts.poll_service_alerts --allow-network --register-manifest
 ```
 
-Airflow side-car trigger:
+Install 30-minute scheduler (macOS launchd):
 
 ```bash
-airflow dags trigger poll_gtfsrt_alerts
+./scripts/alerts/install_launchd_scheduler.sh
+```
+
+Windows scheduler equivalent:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\alerts\install_windows_scheduler.ps1
 ```
 
 ## Dashboard Launch
@@ -94,6 +100,7 @@ PYTHONPATH=src ../.venv-ttc/bin/python -m streamlit run app/streamlit_app.py
 - Gold row counts: `outputs/final_metrics_summary.md`
 - Step logs: `logs/ingestion_log.csv`, `logs/step2_registration_log.csv`, `logs/step3_gold_build_log.csv`
 - Alerts side-car status: `logs/step3_alerts_sidecar_log.csv`
+- Scheduler logs (macOS): `logs/launchd_alerts_sidecar.out.log`, `logs/launchd_alerts_sidecar.err.log`
 
 ## Known Runtime Caveats
 - `gold_alert_validation` can be empty when `fact_gtfsrt_alerts_norm` has no rows.

@@ -1,48 +1,53 @@
-# UX Decisions (V2 Realignment)
+# UX Decisions (V4 Storytelling Redesign)
 
 ## Product Framing
-- Proposal alignment over internal pipeline language.
-- Stakeholder-first analytical path:
-  - overview
-  - rankings
-  - temporal patterns
-  - cause composition
-  - live validation
-  - spatial context
-  - drill-down detail
+- Storytelling-first over exploratory-first.
+- Main audience: stakeholder/evaluator/professor who should grasp findings in under 10 minutes.
+- Core narrative order:
+  - what is happening
+  - where it breaks
+  - when it breaks
+  - why it breaks
+  - deep evidence for one hotspot
+  - live alignment check
+  - methodology appendix
 
-## Navigation Decisions
-- Removed Linkage QA from visible sidebar because it is internal QA, not proposal-promised stakeholder narrative.
-- Kept archived page file for rollback and QA access (`app/pages_archive/01_Linkage_QA.py`).
+## Frozen Navigation Decisions
+- Reduced visible dashboard from many standalone analytic pages to 7 narrative pages.
+- Archived previous V3 page set at `app/pages_archive/v3_pre_v4/`.
+- Demoted QA diagnostics from opening navigation to final appendix page.
 
-## Control Design Decisions
-- Reliability Overview now uses mode + year-range controls.
-- Ranking pages use calendar date ranges instead of one ranking snapshot date.
-- Top-N ranking bars use dynamic height and scroll-safe containers to avoid label clipping.
-- Weekday heatmap metric dropdown is raw-stat only:
-  - frequency
-  - min delay p90
-  - min gap p90
+## Presentation vs Exploration
+- Added shared mode toggle on every page:
+  - `Presentation`: concise controls, fewer tables, one takeaway emphasis.
+  - `Exploration`: deeper controls, expanded tables/charts.
+- Default mode is Presentation to support walkthrough speed and narrative clarity.
+
+## Merge / Remove Decisions
+- Merged split ranking pages into `Recurring Hotspots` with mode-based entity scope.
+- Merged temporal views into `Time Patterns` (weekday-hour + monthly support trend).
+- Merged bus/subway drill pathways into one `Drill-Down Explorer` page while preserving:
+  - route-first bus logic
+  - station-first subway logic
+- Demoted standalone linkage QA into `QA / Methodology`.
+
+## Narrative Framing Pattern
+- Every page starts with:
+  - `Audience Question`
+  - `Takeaway`
+- Every page ends with a `Next Question` transition hint to the next story step.
 
 ## Interpretability Rules
-- Composite remains available and unchanged where previously defined.
-- Non-composite metric selection changes primary ranking/charting metric only.
-- Drill pages keep context breadcrumbs, reset/back behavior, and fallback messaging.
+- Composite score can be shown only with component context (frequency/severity/regularity/cause mix).
+- Date windows are explicit and page-global.
+- Empty-window states show clear info messaging and stop downstream rendering.
 
 ## Live Validation UX
-- Live alert page redesigned as an operations status board:
-  - KPI row
-  - validation status distribution
-  - selector scope validity split
-  - snapshot capture timeline
-  - recent alerts table
-
-## Spatial UX
-- Subway hotspots remain confidence-gated.
-- Bus spatial mode is shown as provisional route-centroid mapping with explicit warning.
-- Map/table are linked via shared mode, metric, top-N, and text filtering controls.
+- `Live Alert Alignment` remains explicit in main flow as the historical-vs-live claim check.
+- Selector validity and capture timing stay visible.
+- Dense alert rows are available in Exploration mode and not required in Presentation mode.
 
 ## Known Caveat Handling
-- Sparse fine-grain slices may trigger metric fallback.
-- Bus spatial points are approximate geometric centroids, not incident geocodes.
-- Live snapshot timestamp represents capture time only.
+- Bus spatial points remain provisional route-centroid approximations.
+- Sparse or empty live-alert states are shown as caveated no-data informational states.
+- QA remains visible and auditable, but not mixed into core story pages.

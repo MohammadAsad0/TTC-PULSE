@@ -30,13 +30,15 @@
 ## GTFS-RT Service Alerts Side-Car Flow
 1. Poll snapshot (`poll_service_alerts`) with offline-safe defaults.
 2. Register raw snapshot manifest row (`alerts/raw_snapshots/manifest.csv`).
-3. Parse snapshots to structured CSV (`alerts/parsed/service_alert_entities.csv`).
+3. Parse snapshots to structured CSV (`alerts/parsed/service_alert_entities.csv`) in append/dedupe mode.
 4. Normalize into Silver alert entities and alert fact.
 5. Refresh `gold_alert_validation`.
 
-Airflow assets:
-- `airflow/dags/poll_gtfsrt_alerts.py` is the side-car chain with hooks.
-- `airflow/dags/ttc_gtfsrt_alerts_pipeline.py` remains minimal scaffold.
+Scheduler assets:
+- macOS active scheduler: `scripts/alerts/install_launchd_scheduler.sh` with runner `scripts/alerts/run_sidecar_cycle.sh`.
+- Windows equivalent scheduler: `scripts/alerts/install_windows_scheduler.ps1` with runner `scripts/alerts/run_sidecar_cycle.ps1`.
+- Shared cycle entry point: `src/ttc_pulse/alerts/run_sidecar_cycle.py` (lock-safe, poll + parse).
+- Airflow DAG files under `airflow/dags/` are retained as legacy reference only for this local-first architecture.
 
 ## Lineage and Traceability Keys
 - Required lineage keys across normalized event data: `source_file`, `source_sheet`, `source_row_id`, `ingested_at`.

@@ -1,13 +1,30 @@
 {
+  "append_outputs": true,
   "caveats": [],
   "outputs": {
     "parse_manifest_csv": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/parse_manifest.csv",
     "parse_summary_json": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/parse_summary.json",
     "service_alert_entities_csv": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/service_alert_entities.csv"
   },
-  "parsed_at": "2026-03-17T21:38:24Z",
+  "parsed_at": "2026-03-23T07:14:01Z",
+  "parsed_snapshot_count": 1,
   "protobuf_decode_available": true,
-  "rows_emitted": 675,
+  "rows_emitted": 69,
+  "rows_written": {
+    "parse_manifest_csv": 1,
+    "service_alert_entities_csv": 69
+  },
   "sample_rows_produced": true,
-  "snapshot_count": 4
+  "sidecar_log": {
+    "appended_rows": 1,
+    "artifact_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/service_alert_entities.csv",
+    "details": "snapshot_count=1; protobuf_decode_available=True; parsed_snapshot_count=1; skipped_existing=0; append_outputs=True; caveats=-",
+    "log_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/logs/step3_alerts_sidecar_log.csv",
+    "logged_at": "2026-03-23T07:14:01Z",
+    "row_count": 69,
+    "status": "ok",
+    "step": "parse_service_alert_snapshots"
+  },
+  "skipped_existing_snapshots": 0,
+  "snapshot_count": 1
 }

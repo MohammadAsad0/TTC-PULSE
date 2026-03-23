@@ -110,28 +110,63 @@ Default local URL:
 
 ## GTFS-RT Service Alerts
 
+Forward-only capture window:
+- Start date: `2026-03-17`
+- Cadence: every 30 minutes
+- Side-car log: `logs/step3_alerts_sidecar_log.csv`
+- Raw snapshot manifest: `alerts/raw_snapshots/manifest.csv`
+- Parsed output: `alerts/parsed/service_alert_entities.csv`
+
 One-shot live poll:
 
 ```bash
-python -m ttc_pulse.alerts.poll_service_alerts --allow-network --register-manifest
+PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.alerts.poll_service_alerts --allow-network --register-manifest
 ```
 
 Parse available snapshots:
 
 ```bash
-python -m ttc_pulse.alerts.parse_service_alerts
+PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.alerts.parse_service_alerts
 ```
 
 Offline/test-mode collection:
 
 ```bash
-python -m ttc_pulse.alerts.poll_service_alerts --test-mode --register-manifest
-python -m ttc_pulse.alerts.parse_service_alerts
+PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.alerts.poll_service_alerts --test-mode --register-manifest
+PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.alerts.parse_service_alerts
+```
+
+Start persistent 30-minute scheduler (macOS launchd):
+
+```bash
+./scripts/alerts/install_launchd_scheduler.sh
+launchctl print gui/$(id -u)/com.ttcpulse.alerts.sidecar | head -n 30
+```
+
+Stop/remove scheduler (macOS launchd):
+
+```bash
+./scripts/alerts/uninstall_launchd_scheduler.sh
+```
+
+Windows Task Scheduler equivalent:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\alerts\install_windows_scheduler.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\alerts\uninstall_windows_scheduler.ps1
 ```
 
 Outputs:
 - `alerts/raw_snapshots/`
 - `alerts/parsed/`
+
+Verification:
+- Check `logs/step3_alerts_sidecar_log.csv` for rows with steps `poll_service_alerts_*`, `register_raw_snapshot_manifest`, and `parse_service_alert_snapshots`.
+- Check `alerts/raw_snapshots/manifest.csv` and `alerts/parsed/parse_manifest.csv` for the raw/parsed run records.
+- Parser default is append/dedupe mode, so new snapshots are added without overwriting prior parsed history.
+- Use `--overwrite-outputs` on `ttc_pulse.alerts.parse_service_alerts` only for explicit full rebuilds.
+- Poller default is no-change aware and skips writing new raw/parsed artifacts when the latest payload hash is unchanged.
+- macOS scheduler logs are written to `logs/launchd_alerts_sidecar.out.log` and `logs/launchd_alerts_sidecar.err.log`.
 
 ## Validation Checklist
 

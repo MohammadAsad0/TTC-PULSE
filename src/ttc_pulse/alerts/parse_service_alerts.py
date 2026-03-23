@@ -15,7 +15,8 @@ from typing import Any, Sequence
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from ttc_pulse.utils.project_setup import resolve_project_paths
+from ttc_pulse.alerts._sidecar_log import append_alert_sidecar_log_row
+from ttc_pulse.utils.project_setup import append_csv_rows, resolve_project_paths
 
 try:  # pragma: no cover - optional dependency
     from google.transit import gtfs_realtime_pb2  # type: ignore
@@ -354,11 +355,28 @@ def _write_rows_csv(path: Path, columns: list[str], rows: Sequence[dict[str, Any
             writer.writerow({column: row.get(column, "") for column in columns})
 
 
+def _load_existing_parse_manifest_keys(manifest_csv: Path) -> set[tuple[str, str]]:
+    if not manifest_csv.exists() or manifest_csv.stat().st_size == 0:
+        return set()
+
+    existing: set[tuple[str, str]] = set()
+    with manifest_csv.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            snapshot_path = str(row.get("snapshot_path", "")).strip()
+            source_sha256 = str(row.get("source_sha256", "")).strip()
+            if snapshot_path and source_sha256:
+                existing.add((snapshot_path, source_sha256))
+    return existing
+
+
 def parse_local_service_alert_snapshots(
     *,
     snapshot_paths: Sequence[Path] | None = None,
     output_dir: Path | None = None,
     include_eda_snapshots: bool = True,
+    log_path: Path | None = None,
+    append_outputs: bool = True,
 ) -> dict[str, Any]:
     """Parse local service-alert snapshots into CSV outputs with fallback safety."""
     project_root = _resolve_project_root()
@@ -370,10 +388,20 @@ def parse_local_service_alert_snapshots(
         selected_paths = [path.resolve() for path in snapshot_paths]
     else:
         selected_paths = discover_local_alert_snapshots(include_eda_snapshots=include_eda_snapshots)
+    selected_paths = sorted({path.resolve().as_posix(): path.resolve() for path in selected_paths}.values())
+
+    entities_csv = (resolved_output_dir / "service_alert_entities.csv").resolve()
+    manifest_csv = (resolved_output_dir / "parse_manifest.csv").resolve()
+    summary_json = (resolved_output_dir / "parse_summary.json").resolve()
+
+    existing_manifest_keys: set[tuple[str, str]] = set()
+    if append_outputs:
+        existing_manifest_keys = _load_existing_parse_manifest_keys(manifest_csv)
 
     parsed_rows: list[dict[str, Any]] = []
     manifest_rows: list[dict[str, Any]] = []
     caveats: list[str] = []
+    skipped_existing_snapshots = 0
 
     if not PROTOBUF_DECODE_AVAILABLE:
         caveat_message = FALLBACK_CAVEAT
@@ -383,6 +411,12 @@ def parse_local_service_alert_snapshots(
 
     for snapshot_path in selected_paths:
         if not snapshot_path.exists() or not snapshot_path.is_file():
+            continue
+        snapshot_path = snapshot_path.resolve()
+        snapshot_sha256 = _file_checksum(snapshot_path)
+        manifest_key = (snapshot_path.as_posix(), snapshot_sha256)
+        if append_outputs and manifest_key in existing_manifest_keys:
+            skipped_existing_snapshots += 1
             continue
 
         try:
@@ -420,19 +454,53 @@ def parse_local_service_alert_snapshots(
                 "source_sha256": snapshot_meta.get("source_sha256", ""),
             }
         )
+        if append_outputs:
+            existing_manifest_keys.add(manifest_key)
 
-    entities_csv = (resolved_output_dir / "service_alert_entities.csv").resolve()
-    manifest_csv = (resolved_output_dir / "parse_manifest.csv").resolve()
-    summary_json = (resolved_output_dir / "parse_summary.json").resolve()
+    entities_rows_written = 0
+    manifest_rows_written = 0
+    if append_outputs:
+        if parsed_rows:
+            entities_rows_written = append_csv_rows(entities_csv, PARSED_COLUMNS, parsed_rows)
+        if manifest_rows:
+            manifest_rows_written = append_csv_rows(manifest_csv, PARSE_MANIFEST_COLUMNS, manifest_rows)
+    else:
+        _write_rows_csv(entities_csv, PARSED_COLUMNS, parsed_rows)
+        _write_rows_csv(manifest_csv, PARSE_MANIFEST_COLUMNS, manifest_rows)
+        entities_rows_written = len(parsed_rows)
+        manifest_rows_written = len(manifest_rows)
 
-    _write_rows_csv(entities_csv, PARSED_COLUMNS, parsed_rows)
-    _write_rows_csv(manifest_csv, PARSE_MANIFEST_COLUMNS, manifest_rows)
+    parse_status = "empty"
+    if parsed_rows:
+        parse_status = "ok_fallback" if (not PROTOBUF_DECODE_AVAILABLE or caveats) else "ok"
+    elif skipped_existing_snapshots > 0 and append_outputs:
+        parse_status = "skipped_existing"
+
+    log_entry = append_alert_sidecar_log_row(
+        step="parse_service_alert_snapshots",
+        status=parse_status,
+        row_count=entities_rows_written,
+        details=(
+            f"snapshot_count={len(selected_paths)}; protobuf_decode_available={PROTOBUF_DECODE_AVAILABLE}; "
+            f"parsed_snapshot_count={len(manifest_rows)}; skipped_existing={skipped_existing_snapshots}; "
+            f"append_outputs={append_outputs}; caveats={' | '.join(caveats) if caveats else '-'}"
+        ),
+        artifact_path=entities_csv.as_posix(),
+        log_path=log_path,
+    )
 
     summary: dict[str, Any] = {
         "parsed_at": _utc_iso(_utc_now()),
         "snapshot_count": len(selected_paths),
+        "parsed_snapshot_count": len(manifest_rows),
+        "skipped_existing_snapshots": skipped_existing_snapshots,
         "rows_emitted": len(parsed_rows),
-        "sample_rows_produced": len(parsed_rows) > 0,
+        "sample_rows_produced": entities_rows_written > 0,
+        "append_outputs": append_outputs,
+        "rows_written": {
+            "service_alert_entities_csv": entities_rows_written,
+            "parse_manifest_csv": manifest_rows_written,
+        },
         "protobuf_decode_available": PROTOBUF_DECODE_AVAILABLE,
         "caveats": caveats,
         "outputs": {
@@ -440,6 +508,7 @@ def parse_local_service_alert_snapshots(
             "parse_manifest_csv": manifest_csv.as_posix(),
             "parse_summary_json": summary_json.as_posix(),
         },
+        "sidecar_log": log_entry,
     }
     summary_json.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
     return summary
@@ -465,6 +534,17 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Do not include ../eda/gtfsrt_eda_outputs/raw in snapshot discovery.",
     )
+    parser.add_argument(
+        "--log-path",
+        type=Path,
+        default=None,
+        help="Optional side-car log CSV path (defaults to logs/step3_alerts_sidecar_log.csv).",
+    )
+    parser.add_argument(
+        "--overwrite-outputs",
+        action="store_true",
+        help="Rewrite parsed outputs from selected snapshots instead of append/dedupe mode.",
+    )
     return parser
 
 
@@ -475,6 +555,8 @@ def main() -> None:
         snapshot_paths=args.snapshot_path,
         output_dir=args.output_dir,
         include_eda_snapshots=not args.no_eda_snapshots,
+        log_path=args.log_path,
+        append_outputs=not args.overwrite_outputs,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
 
