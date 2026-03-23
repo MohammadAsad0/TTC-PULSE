@@ -7,9 +7,13 @@ import csv
 import hashlib
 import json
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from ttc_pulse.utils.project_setup import resolve_project_paths
 
