@@ -410,7 +410,7 @@ def _coerce_year(value: object) -> int | None:
         return None
 
 
-def _extract_year_from_chart_event(event_state: object, selection_name: str = "year_pick") -> int | None:
+def _extract_field_from_chart_event(event_state: object, selection_name: str, field_name: str) -> object | None:
     if event_state is None:
         return None
 
@@ -441,26 +441,47 @@ def _extract_year_from_chart_event(event_state: object, selection_name: str = "y
             return None
         first = candidate[0]
         if isinstance(first, dict):
-            return _coerce_year(first.get("year"))
-        return _coerce_year(first)
+            return first.get(field_name)
+        return first
 
     if isinstance(candidate, dict):
-        if "year" in candidate:
-            return _coerce_year(candidate.get("year"))
+        if field_name in candidate:
+            return candidate.get(field_name)
         if "value" in candidate and isinstance(candidate.get("value"), list):
             values = candidate.get("value") or []
             if values and isinstance(values[0], dict):
-                return _coerce_year(values[0].get("year"))
+                return values[0].get(field_name)
         if "values" in candidate and isinstance(candidate.get("values"), list):
             values = candidate.get("values") or []
             if values and isinstance(values[0], dict):
-                return _coerce_year(values[0].get("year"))
+                return values[0].get(field_name)
+        return None
 
-    return _coerce_year(candidate)
+    return candidate
+
+
+def _extract_year_from_chart_event(event_state: object, selection_name: str = "year_pick") -> int | None:
+    return _coerce_year(_extract_field_from_chart_event(event_state, selection_name=selection_name, field_name="year"))
+
+
+def _extract_month_from_chart_event(event_state: object, selection_name: str = "month_pick") -> int | None:
+    return _coerce_year(_extract_field_from_chart_event(event_state, selection_name=selection_name, field_name="month_num"))
+
+
+def _extract_day_name_from_chart_event(event_state: object, selection_name: str = "weekday_pick") -> str | None:
+    raw = _extract_field_from_chart_event(event_state, selection_name=selection_name, field_name="day_name")
+    if raw is None:
+        return None
+    day_name = str(raw).strip()
+    if not day_name:
+        return None
+    if day_name not in DAY_NAME_ORDER:
+        return None
+    return day_name
 
 
 st.title("Drill-Down Explorer")
-st.caption("This page exists because it helps the audience inspect one route/station deeply before taking action.")
+st.caption("Inspect one route/station deeply before taking action.")
 
 mode = story_mode_selector(sidebar=True, key="story_mode")
 presentation = is_presentation_mode(mode)
@@ -610,22 +631,50 @@ month_frame = month_frame.dropna(subset=["month_start"])
 month_frame["month_choice"] = month_frame["month_start"].dt.strftime("%b (%m)")
 month_frame["month_label"] = month_frame["month_start"].dt.strftime("%b")
 
+month_selection_name = "month_pick"
+month_click = alt.selection_point(name=month_selection_name, fields=["month_num"], empty=True, on="click")
 month_chart = (
     alt.Chart(month_frame)
-    .mark_line(point=True)
+    .mark_bar()
     .encode(
         x=alt.X("month_start:T", title="Month", axis=alt.Axis(format="%b", labelAngle=0)),
         y=alt.Y(f"{metric_column}:Q", title=metric_axis_title(metric_title)),
+        color=alt.condition(month_click, alt.value("#1f77b4"), alt.value("#b5c3d7")),
         tooltip=["month_start:T", f"{metric_column}:Q", "frequency:Q", "severity_p90:Q", "regularity_p90:Q", "cause_mix_score:Q", "composite_score:Q"],
     )
-    .properties(title=f"Monthly Profile ({selected_year})", height=260)
+    .add_params(month_click)
+    .properties(title=f"Monthly Profile ({selected_year}) (click a bar to select month)", height=260)
 )
-st.altair_chart(month_chart, use_container_width=True)
+
+month_chart_key = f"drill_month_chart_{selected_mode}_{selected_entity}_{selected_year}_{metric_column}"
+month_event = st.altair_chart(
+    month_chart,
+    use_container_width=True,
+    key=month_chart_key,
+    on_select="rerun",
+    selection_mode=month_selection_name,
+)
 
 month_choice_to_num = dict(zip(month_frame["month_choice"], month_frame["month_num"]))
+month_num_to_choice = {month_num: month_choice for month_choice, month_num in month_choice_to_num.items()}
 month_options = ["All months"] + month_frame["month_choice"].tolist()
-selected_month_choice = st.selectbox("Selected Month", options=month_options, index=0)
+selected_month_from_chart = _extract_month_from_chart_event(month_event, selection_name=month_selection_name)
+month_state_key = f"drill_selected_month_{selected_mode}_{selected_entity}_{selected_year}"
+if selected_month_from_chart in month_num_to_choice:
+    st.session_state[month_state_key] = int(selected_month_from_chart)
+
+default_month_num = st.session_state.get(month_state_key)
+default_month_choice = month_num_to_choice.get(default_month_num, "All months")
+if default_month_choice not in month_options:
+    default_month_choice = "All months"
+selected_month_choice = st.selectbox(
+    "Selected Month (click chart or use dropdown)",
+    options=month_options,
+    index=month_options.index(default_month_choice),
+    key=f"drill_month_select_{selected_mode}_{selected_entity}_{selected_year}",
+)
 selected_month_num = month_choice_to_num.get(selected_month_choice)
+st.session_state[month_state_key] = int(selected_month_num) if selected_month_num is not None else None
 selected_month_label = selected_month_choice.split(" (")[0] if selected_month_num is not None else "All months"
 
 weekday_result = _load_weekday_metrics(
@@ -640,7 +689,9 @@ if weekday_result.status in {"missing", "error"}:
     st.error(weekday_result.message)
     st.stop()
 
-weekday_frame = weekday_result.frame.copy() if weekday_result.status == "ok" else pd.DataFrame()
+weekday_frame = weekday_result.frame.copy() if weekday_result.status == "ok" else pd.DataFrame(columns=["day_name"])
+if "day_name" not in weekday_frame.columns:
+    weekday_frame = pd.DataFrame(columns=["day_name"])
 weekday_base = pd.DataFrame({"day_name": DAY_NAME_ORDER})
 weekday_frame = weekday_base.merge(weekday_frame, on="day_name", how="left")
 for metric_name in ["frequency", "severity_p90", "regularity_p90", "cause_mix_score", "composite_score"]:
@@ -649,21 +700,51 @@ weekday_frame["day_name"] = pd.Categorical(weekday_frame["day_name"], categories
 weekday_frame = weekday_frame.sort_values("day_name")
 
 weekday_scope = f"{selected_month_label} {selected_year}" if selected_month_num is not None else str(selected_year)
+weekday_selection_name = "weekday_pick"
+weekday_click = alt.selection_point(name=weekday_selection_name, fields=["day_name"], empty=True, on="click")
 weekday_chart = (
     alt.Chart(weekday_frame)
     .mark_bar()
     .encode(
         x=alt.X("day_name:N", sort=DAY_NAME_ORDER, title="Weekday"),
         y=alt.Y(f"{metric_column}:Q", title=metric_axis_title(metric_title)),
+        color=alt.condition(weekday_click, alt.value("#1f77b4"), alt.value("#b5c3d7")),
         tooltip=["day_name:N", f"{metric_column}:Q", "frequency:Q", "severity_p90:Q", "regularity_p90:Q", "cause_mix_score:Q", "composite_score:Q"],
     )
-    .properties(title=f"Weekday Profile ({weekday_scope})", height=260)
+    .add_params(weekday_click)
+    .properties(title=f"Weekday Profile ({weekday_scope}) (click a bar to select weekday)", height=260)
 )
-st.altair_chart(weekday_chart, use_container_width=True)
+
+weekday_chart_key = (
+    f"drill_weekday_chart_{selected_mode}_{selected_entity}_{selected_year}_"
+    f"{selected_month_num if selected_month_num is not None else 'all'}_{metric_column}"
+)
+weekday_event = st.altair_chart(
+    weekday_chart,
+    use_container_width=True,
+    key=weekday_chart_key,
+    on_select="rerun",
+    selection_mode=weekday_selection_name,
+)
 
 weekday_options = ["All weekdays"] + DAY_NAME_ORDER
-selected_weekday_choice = st.selectbox("Selected Weekday", options=weekday_options, index=0)
+selected_weekday_from_chart = _extract_day_name_from_chart_event(weekday_event, selection_name=weekday_selection_name)
+weekday_scope_token = selected_month_num if selected_month_num is not None else "all_months"
+weekday_state_key = f"drill_selected_weekday_{selected_mode}_{selected_entity}_{selected_year}_{weekday_scope_token}"
+if selected_weekday_from_chart in DAY_NAME_ORDER:
+    st.session_state[weekday_state_key] = selected_weekday_from_chart
+
+default_weekday_choice = st.session_state.get(weekday_state_key, "All weekdays")
+if default_weekday_choice not in weekday_options:
+    default_weekday_choice = "All weekdays"
+selected_weekday_choice = st.selectbox(
+    "Selected Weekday (click chart or use dropdown)",
+    options=weekday_options,
+    index=weekday_options.index(default_weekday_choice),
+    key=f"drill_weekday_select_{selected_mode}_{selected_entity}_{selected_year}_{weekday_scope_token}",
+)
 selected_weekday = None if selected_weekday_choice == "All weekdays" else selected_weekday_choice
+st.session_state[weekday_state_key] = selected_weekday_choice
 
 if selected_month_num is not None:
     weekly_heatmap_result = _load_weekly_heatmap_metrics(

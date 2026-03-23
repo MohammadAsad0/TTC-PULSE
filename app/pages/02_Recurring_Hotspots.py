@@ -248,7 +248,7 @@ def _normalize_date_range(selection: object, min_date: date, max_date: date) -> 
 
 
 st.title("Recurring Hotspots")
-st.caption("This page exists because it helps the audience understand which entities repeatedly drive TTC reliability risk.")
+st.caption("Understand which entities repeatedly drive TTC reliability risk.")
 
 mode = story_mode_selector(sidebar=True, key="story_mode")
 presentation = is_presentation_mode(mode)

@@ -54,7 +54,7 @@ def _load_table_status() -> tuple[Path, pd.DataFrame]:
 
 
 st.title("QA / Methodology")
-st.caption("This page exists because it helps the audience trust the analysis without interrupting the main story flow.")
+st.caption("Trust the analysis without interrupting the main story flow.")
 
 mode = story_mode_selector(sidebar=True, key="story_mode")
 presentation = is_presentation_mode(mode)

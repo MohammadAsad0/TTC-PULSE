@@ -116,7 +116,7 @@ def _load_linkage_snapshot():
 
 
 st.title("Live Alert Alignment")
-st.caption("This page exists because it helps the audience verify whether live disruptions align with historically risky entities.")
+st.caption("Understand and verify whether live disruptions align with historically risky entities.")
 
 mode = story_mode_selector(sidebar=True, key="story_mode")
 presentation = is_presentation_mode(mode)

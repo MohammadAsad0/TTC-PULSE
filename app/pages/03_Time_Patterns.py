@@ -231,14 +231,14 @@ def _series_label(mode: object, entity_type: object) -> str:
 
 
 st.title("Time Patterns")
-st.caption("This page exists because it helps the audience understand when disruptions recur and how patterns evolve over time.")
+st.caption("Understand how disruptions repeat themselves and the way their patterns shift and change over time.")
 
 mode = story_mode_selector(sidebar=True, key="story_mode")
 presentation = is_presentation_mode(mode)
 
 page_story_header(
     audience_question="When do disruptions recur most often?",
-    takeaway="Disruptions are not uniform; they cluster in specific weekday-hour windows and monthly periods.",
+    takeaway="Disruptions are not uniform, they cluster in specific weekday-hour windows and monthly periods.",
 )
 
 coverage_result = _load_heatmap_coverage()

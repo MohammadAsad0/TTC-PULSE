@@ -97,7 +97,7 @@ def _normalize_date_range(selection: object, min_date: date, max_date: date) -> 
 
 
 st.title("Cause Signatures")
-st.caption("This page exists because it helps the audience understand why disruptions happen, not just how often.")
+st.caption("Understand what causes disruptions happen, not just how often.")
 
 mode = story_mode_selector(sidebar=True, key="story_mode")
 presentation = is_presentation_mode(mode)

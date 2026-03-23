@@ -182,7 +182,7 @@ def _normalize_date_range(selection: object, min_date: date, max_date: date) -> 
 
 
 st.title("Story Overview")
-st.caption("This page exists because it helps the audience understand the TTC reliability story and stakes in under one minute.")
+st.caption("Understand the TTC's service reliability story.")
 
 mode = story_mode_selector(sidebar=True, key="story_mode")
 presentation = is_presentation_mode(mode)
