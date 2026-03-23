@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 import sys
 from typing import Any
@@ -30,6 +31,7 @@ STATE_ROUTE = "bus_drill_route_id"
 STATE_YEAR = "bus_drill_year"
 STATE_MONTH = "bus_drill_month"
 STATE_WEEKDAY = "bus_drill_weekday"
+STATE_DATE_WINDOW = "bus_drill_date_window"
 
 TIME_BIN_ORDER: list[tuple[int, str]] = [
     (1, "Early morning (4-6)"),
@@ -47,7 +49,7 @@ TIME_BIN_ORDER_MAP = {label: order for order, label in TIME_BIN_ORDER}
 
 
 def _init_state() -> None:
-    for key in [STATE_ROUTE, STATE_YEAR, STATE_MONTH, STATE_WEEKDAY]:
+    for key in [STATE_ROUTE, STATE_YEAR, STATE_MONTH, STATE_WEEKDAY, STATE_DATE_WINDOW]:
         if key not in st.session_state:
             st.session_state[key] = None
 
@@ -142,6 +144,21 @@ def _extract_selection_value(event_state: Any, selection_name: str, field_name: 
     return _extract_field_from_event(payload, field_name)
 
 
+def _normalize_date_range(selection: object, min_date: date, max_date: date) -> tuple[date, date]:
+    if isinstance(selection, tuple) and len(selection) == 2:
+        start_date, end_date = selection
+    else:
+        start_date = end_date = selection if isinstance(selection, date) else min_date
+
+    if start_date is None:
+        start_date = min_date
+    if end_date is None:
+        end_date = max_date
+    if start_date > end_date:
+        start_date, end_date = end_date, start_date
+    return start_date, end_date
+
+
 def _is_composite_unstable(frame: pd.DataFrame, min_points: int = 8) -> bool:
     if frame.empty or "composite_score" not in frame.columns:
         return True
@@ -195,7 +212,25 @@ def _resolve_drill_metric(
 
 
 @st.cache_data(ttl=180)
-def _load_top_routes_full_history() -> Any:
+def _load_route_coverage_window() -> Any:
+    return query_table(
+        table_name="gold_route_time_metrics",
+        query_template="""
+        SELECT
+            MIN(service_date) AS min_service_date,
+            MAX(service_date) AS max_service_date,
+            COUNT(DISTINCT EXTRACT(YEAR FROM service_date))::BIGINT AS years_covered,
+            COUNT(DISTINCT DATE_TRUNC('month', service_date))::BIGINT AS months_covered
+        FROM {source}
+        WHERE mode = 'bus'
+            AND route_id_gtfs IS NOT NULL
+            AND service_date IS NOT NULL
+        """,
+    )
+
+
+@st.cache_data(ttl=180)
+def _load_top_routes_full_history(start_date: str, end_date: str) -> Any:
     return query_table(
         table_name="gold_route_time_metrics",
         query_template="""
@@ -209,6 +244,8 @@ def _load_top_routes_full_history() -> Any:
             FROM {source}
             WHERE mode = 'bus'
                 AND route_id_gtfs IS NOT NULL
+                AND service_date IS NOT NULL
+                AND service_date BETWEEN ? AND ?
             GROUP BY 1
         ),
         scored AS (
@@ -250,11 +287,12 @@ def _load_top_routes_full_history() -> Any:
         FROM scored
         ORDER BY rank_position ASC, route_id
         """,
+        params=[start_date, end_date],
     )
 
 
 @st.cache_data(ttl=180)
-def _load_route_year_metrics(route_id: str) -> Any:
+def _load_route_year_metrics(route_id: str, start_date: str, end_date: str) -> Any:
     return query_table(
         table_name="gold_route_time_metrics",
         query_template="""
@@ -269,6 +307,7 @@ def _load_route_year_metrics(route_id: str) -> Any:
             WHERE mode = 'bus'
                 AND route_id_gtfs = ?
                 AND service_date IS NOT NULL
+                AND service_date BETWEEN ? AND ?
             GROUP BY 1
         ),
         scored AS (
@@ -300,12 +339,12 @@ def _load_route_year_metrics(route_id: str) -> Any:
         FROM scored
         ORDER BY year ASC
         """,
-        params=[route_id],
+        params=[route_id, start_date, end_date],
     )
 
 
 @st.cache_data(ttl=180)
-def _load_route_month_metrics(route_id: str, year: int) -> Any:
+def _load_route_month_metrics(route_id: str, year: int, start_date: str, end_date: str) -> Any:
     return query_table(
         table_name="gold_route_time_metrics",
         query_template="""
@@ -322,6 +361,7 @@ def _load_route_month_metrics(route_id: str, year: int) -> Any:
                 AND route_id_gtfs = ?
                 AND CAST(EXTRACT(YEAR FROM service_date) AS INTEGER) = ?
                 AND service_date IS NOT NULL
+                AND service_date BETWEEN ? AND ?
             GROUP BY 1, 2
         ),
         scored AS (
@@ -356,12 +396,12 @@ def _load_route_month_metrics(route_id: str, year: int) -> Any:
         FROM scored
         ORDER BY month_num ASC
         """,
-        params=[route_id, year],
+        params=[route_id, year, start_date, end_date],
     )
 
 
 @st.cache_data(ttl=180)
-def _load_route_daily_month_metrics(route_id: str, year: int, month: int) -> Any:
+def _load_route_daily_month_metrics(route_id: str, year: int, month: int, start_date: str, end_date: str) -> Any:
     return query_table(
         table_name="gold_route_time_metrics",
         query_template="""
@@ -379,6 +419,7 @@ def _load_route_daily_month_metrics(route_id: str, year: int, month: int) -> Any
                 AND CAST(EXTRACT(YEAR FROM service_date) AS INTEGER) = ?
                 AND CAST(EXTRACT(MONTH FROM service_date) AS INTEGER) = ?
                 AND service_date IS NOT NULL
+                AND service_date BETWEEN ? AND ?
             GROUP BY 1
         ),
         scored AS (
@@ -412,12 +453,12 @@ def _load_route_daily_month_metrics(route_id: str, year: int, month: int) -> Any
         FROM scored
         ORDER BY service_date ASC
         """,
-        params=[route_id, year, month],
+        params=[route_id, year, month, start_date, end_date],
     )
 
 
 @st.cache_data(ttl=180)
-def _load_route_weekday_metrics(route_id: str, year: int) -> Any:
+def _load_route_weekday_metrics(route_id: str, year: int, start_date: str, end_date: str) -> Any:
     return query_table(
         table_name="gold_route_time_metrics",
         query_template="""
@@ -444,6 +485,7 @@ def _load_route_weekday_metrics(route_id: str, year: int) -> Any:
                 AND route_id_gtfs = ?
                 AND CAST(EXTRACT(YEAR FROM service_date) AS INTEGER) = ?
                 AND service_date IS NOT NULL
+                AND service_date BETWEEN ? AND ?
             GROUP BY 1, 2
         ),
         scored AS (
@@ -479,12 +521,12 @@ def _load_route_weekday_metrics(route_id: str, year: int) -> Any:
         FROM scored
         ORDER BY day_order ASC
         """,
-        params=[route_id, year],
+        params=[route_id, year, start_date, end_date],
     )
 
 
 @st.cache_data(ttl=180)
-def _load_route_time_bin_metrics(route_id: str, year: int, day_name: str) -> Any:
+def _load_route_time_bin_metrics(route_id: str, year: int, day_name: str, start_date: str, end_date: str) -> Any:
     return query_table(
         table_name="gold_route_time_metrics",
         query_template="""
@@ -513,6 +555,7 @@ def _load_route_time_bin_metrics(route_id: str, year: int, day_name: str) -> Any
                 AND CAST(EXTRACT(YEAR FROM service_date) AS INTEGER) = ?
                 AND STRFTIME(service_date, '%A') = ?
                 AND service_date IS NOT NULL
+                AND service_date BETWEEN ? AND ?
             GROUP BY 1
         ),
         scored AS (
@@ -545,12 +588,12 @@ def _load_route_time_bin_metrics(route_id: str, year: int, day_name: str) -> Any
             ) AS composite_score
         FROM scored
         """,
-        params=[route_id, year, day_name],
+        params=[route_id, year, day_name, start_date, end_date],
     )
 
 
 @st.cache_data(ttl=180)
-def _load_route_top_cause(route_id: str) -> Any:
+def _load_route_top_cause(route_id: str, start_date: str, end_date: str) -> Any:
     return query_table(
         table_name="gold_delay_events_core",
         query_template="""
@@ -560,11 +603,13 @@ def _load_route_top_cause(route_id: str) -> Any:
         FROM {source}
         WHERE mode = 'bus'
             AND route_id_gtfs = ?
+            AND service_date IS NOT NULL
+            AND service_date BETWEEN ? AND ?
         GROUP BY 1
         ORDER BY incident_count DESC, incident_category
         LIMIT 1
         """,
-        params=[route_id],
+        params=[route_id, start_date, end_date],
     )
 
 
@@ -685,8 +730,8 @@ def _build_breadcrumb() -> str:
     return " > ".join(parts)
 
 
-def _show_route_summary(route_row: pd.Series, route_id: str) -> None:
-    cause_result = _load_route_top_cause(route_id)
+def _show_route_summary(route_row: pd.Series, route_id: str, start_date: str, end_date: str) -> None:
+    cause_result = _load_route_top_cause(route_id, start_date, end_date)
     top_cause = "-"
     if cause_result.status == "ok" and not cause_result.frame.empty:
         cause_value = cause_result.frame.iloc[0]["incident_category"]
@@ -732,7 +777,50 @@ _init_state()
 
 st.title("Bus Reliability Drill-Down")
 st.caption(
-    "Guided drill-down for TTC bus reliability (full history): route ranking -> year -> month -> day or weekday -> time-of-day."
+    "Guided drill-down for TTC bus reliability (selected service-date window): "
+    "route ranking -> year -> month -> day or weekday -> time-of-day."
+)
+
+selected_metric_label = st.selectbox(
+    "Metric to analyze",
+    options=METRIC_OPTIONS,
+    index=0,
+    key="bus_drill_metric_selector",
+)
+
+coverage_result = _load_route_coverage_window()
+coverage_frame = _require_result(coverage_result, "No bus route service-date coverage found in Gold route metrics.")
+if coverage_frame.empty:
+    st.stop()
+coverage_row = coverage_frame.iloc[0]
+min_service_date = pd.to_datetime(coverage_row["min_service_date"], errors="coerce")
+max_service_date = pd.to_datetime(coverage_row["max_service_date"], errors="coerce")
+if pd.isna(min_service_date) or pd.isna(max_service_date):
+    st.info("Service-date coverage is unavailable for bus drill-down.")
+    st.stop()
+
+min_date = min_service_date.date()
+max_date = max_service_date.date()
+date_selection = st.date_input(
+    "Service date range",
+    value=(min_date, max_date),
+    min_value=min_date,
+    max_value=max_date,
+    key="bus_drill_date_range",
+)
+selected_start_date, selected_end_date = _normalize_date_range(date_selection, min_date=min_date, max_date=max_date)
+selected_start_iso = selected_start_date.isoformat()
+selected_end_iso = selected_end_date.isoformat()
+
+window_key = f"{selected_start_iso}|{selected_end_iso}"
+if st.session_state.get(STATE_DATE_WINDOW) != window_key:
+    st.session_state[STATE_DATE_WINDOW] = window_key
+    _reset_all()
+
+st.caption(
+    "Data coverage (`service_date`, bus): "
+    f"{min_date:%Y-%m} to {max_date:%Y-%m} ({min_date:%Y-%m-%d} to {max_date:%Y-%m-%d}) | "
+    f"Selected: {selected_start_iso} to {selected_end_iso}"
 )
 
 ctrl_left, ctrl_mid, ctrl_right = st.columns([2, 1, 1])
@@ -743,14 +831,8 @@ if ctrl_right.button("Reset Drill-Down"):
     _reset_all()
 
 top_k = st.slider("Top K Routes", min_value=5, max_value=100, value=20, step=5)
-selected_metric_label = st.selectbox(
-    "Metric to analyze",
-    options=METRIC_OPTIONS,
-    index=0,
-    key="bus_drill_metric_selector",
-)
 
-ranking_result = _load_top_routes_full_history()
+ranking_result = _load_top_routes_full_history(selected_start_iso, selected_end_iso)
 ranking_frame = _require_result(ranking_result, "No bus route reliability rows available in Gold route metrics.")
 if ranking_frame.empty:
     st.stop()
@@ -777,7 +859,7 @@ if selected_metric_label == "Composite Score":
     top_frame = top_frame.sort_values(["rank_position", "route_id"]).reset_index(drop=True)
 else:
     top_frame = top_frame.sort_values([ranking_metric_column, "rank_position"], ascending=[False, True]).reset_index(drop=True)
-st.markdown("### 1. Top K Bus Routes Across Full History")
+st.markdown("### 1. Top K Bus Routes Across Selected Window")
 route_event = _render_clickable_horizontal(
     frame=top_frame,
     x_field=ranking_metric_column,
@@ -785,9 +867,9 @@ route_event = _render_clickable_horizontal(
     selected_value=st.session_state[STATE_ROUTE],
     selection_name="route_pick",
     title=(
-        "Worst Routes by Full-History Composite Reliability Score"
+        f"Worst Routes by Composite Reliability Score ({selected_start_iso} to {selected_end_iso})"
         if selected_metric_label == "Composite Score"
-        else f"Worst Routes by Full-History {ranking_metric_label}"
+        else f"Worst Routes by {ranking_metric_label} ({selected_start_iso} to {selected_end_iso})"
     ),
     tooltip=[
         "route_id:N",
@@ -815,11 +897,11 @@ if route_select != str(st.session_state[STATE_ROUTE]):
 selected_route = str(st.session_state[STATE_ROUTE])
 route_row = _route_by_id(ranking_frame, selected_route)
 if route_row is not None:
-    _show_route_summary(route_row, selected_route)
+    _show_route_summary(route_row, selected_route, selected_start_iso, selected_end_iso)
 
 st.markdown("---")
 st.markdown("### 2. Selected Route by Year")
-year_result = _load_route_year_metrics(selected_route)
+year_result = _load_route_year_metrics(selected_route, selected_start_iso, selected_end_iso)
 year_frame = _require_result(year_result, "No yearly slices available for the selected route.")
 if year_frame.empty:
     st.stop()
@@ -878,7 +960,7 @@ st.info(f"Context: Route {selected_route} | Year {selected_year}")
 
 st.markdown("---")
 st.markdown("### 3. Selected Route Within Year by Month")
-month_result = _load_route_month_metrics(selected_route, selected_year)
+month_result = _load_route_month_metrics(selected_route, selected_year, selected_start_iso, selected_end_iso)
 month_frame = _require_result(month_result, "No month-level slices available for the selected route/year.")
 if month_frame.empty:
     st.stop()
@@ -946,7 +1028,13 @@ branch_left, branch_right = st.columns(2)
 
 with branch_left:
     st.markdown("### 4A. Selected Month by Day")
-    daily_result = _load_route_daily_month_metrics(selected_route, selected_year, selected_month)
+    daily_result = _load_route_daily_month_metrics(
+        selected_route,
+        selected_year,
+        selected_month,
+        selected_start_iso,
+        selected_end_iso,
+    )
     daily_frame = _require_result(daily_result, "No day-level rows available for this route/year/month.")
     if not daily_frame.empty:
         daily_frame["service_date"] = pd.to_datetime(daily_frame["service_date"])
@@ -991,7 +1079,7 @@ with branch_left:
 
 with branch_right:
     st.markdown("### 4B. Selected Year by Weekday")
-    weekday_result = _load_route_weekday_metrics(selected_route, selected_year)
+    weekday_result = _load_route_weekday_metrics(selected_route, selected_year, selected_start_iso, selected_end_iso)
     weekday_frame = _require_result(weekday_result, "No weekday-level rows available for this route/year.")
     if not weekday_frame.empty:
         weekday_frame["day_name"] = pd.Categorical(
@@ -1057,7 +1145,13 @@ if st.session_state[STATE_WEEKDAY] is not None:
     st.markdown("### 5. Weekday to Time-of-Day Bins")
     st.info(f"Context: Route {selected_route} | Year {selected_year} | Weekday {selected_weekday}")
 
-    time_bin_result = _load_route_time_bin_metrics(selected_route, selected_year, selected_weekday)
+    time_bin_result = _load_route_time_bin_metrics(
+        selected_route,
+        selected_year,
+        selected_weekday,
+        selected_start_iso,
+        selected_end_iso,
+    )
     time_bin_frame = _require_result(time_bin_result, "No time-bin rows available for this route/year/weekday.")
     if not time_bin_frame.empty:
         time_bin_frame["bin_order"] = time_bin_frame["time_bin"].map(TIME_BIN_ORDER_MAP).fillna(99).astype(int)
