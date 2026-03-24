@@ -1,6 +1,6 @@
 \section{Methodology}
 
-Our methodology is designed to analyze TTC reliability as a spatiotemporal pattern rather than a single KPI. The workflow integrates historical delay logs, GTFS reference data, and GTFS-Realtime service alerts into a layered analytics pipeline and a stakeholder-facing dashboard.
+Our methodology is designed to analyze TTC reliability as a spatiotemporal pattern rather than a single KPI. The workflow integrates historical delay logs, GTFS reference data, and GTFS-Realtime service alerts into a layered analytics pipeline and a stakeholder-facing dashboard. The end-to-end architecture is shown in Figure~\ref{fig:ttc-architecture}.
 
 \subsection{Approach Overview}
 The overall approach has six stages:
@@ -68,13 +68,13 @@ We aggregate by entity and time to answer ``where'', ``when'', and ``how often''
 \textbf{Reliability metric framework.}
 For each entity $u$ in time window $t$, we compute:
 \begin{itemize}
-    \item \textbf{Frequency} ($F$): incident recurrence volume,
-    \item \textbf{Severity} ($\mathrm{Sev}_{90}$): upper-tail delay behavior,
-    \item \textbf{Regularity} ($\mathrm{Reg}_{90}$): upper-tail gap/headway irregularity,
-    \item \textbf{Cause Mix} ($C$): disruption cause composition signal.
+    \item \textbf{Frequency} ($F$): total disruption-event volume in the entity-time slice (implemented as summed \texttt{event\_count}/\texttt{frequency}); here, an \emph{incident} means one recorded delay/disruption event tied to a service date and incident category
+    \item \textbf{Severity} ($\mathrm{Sev}_{90}$): upper-tail delay behavior (90th-percentile delay minutes)
+    \item \textbf{Regularity} ($\mathrm{Reg}_{90}$): upper-tail gap/headway irregularity (90th-percentile gap minutes)
+    \item \textbf{Cause Mix} ($C$): disruption cause composition signal
 \end{itemize}
 
-Cause mix is computed from category concentration using:
+Cause mix is computed from category concentration:
 \[
 C(u,t)=1-\sum_{k} p_k(u,t)^2,
 \]
@@ -90,30 +90,39 @@ z(x)=\frac{x-\mu_x}{\sigma_x},
 \]
 computed within the peer comparison set (same mode/date-window context). If $\sigma_x=0$, the implementation safely falls back to zero contribution for that standardized term. The dashboard always exposes component metrics beside the composite score.
 
+Interpretation of $S(u,t)$ is relative (not bounded to $[-1,1]$):
+\begin{itemize}
+    \item $S(u,t)>0$: worse-than-peer reliability profile in the selected comparison set
+    \item $S(u,t)<0$: better-than-peer reliability profile in the selected comparison set
+    \item $S(u,t)\approx 0$: near peer-average reliability profile
+\end{itemize}
+Larger absolute magnitude means stronger deviation from peer-average behavior.
+
 \subsection{Data-Analytics Architecture}
 The implementation follows a local-first layered architecture:
 \begin{itemize}
-    \item \textbf{Raw/Bronze}: ingestion and lineage-preserving storage,
-    \item \textbf{Silver}: canonical dimensions, bridges, review queues, normalized facts,
-    \item \textbf{Gold}: stakeholder marts for reliability metrics, rankings, temporal profiles, and alert validation.
+    \item \textbf{Raw/Bronze}: ingestion and lineage-preserving storage
+    \item \textbf{Silver}: canonical dimensions, bridges, review queues, normalized facts
+    \item \textbf{Gold}: stakeholder marts for reliability metrics, rankings, temporal profiles, and alert validation
 \end{itemize}
 
 Runtime stack:
 \begin{itemize}
-    \item \textbf{Storage/Query}: DuckDB + Parquet,
-    \item \textbf{Serving}: Streamlit dashboard,
-    \item \textbf{Live capture}: GTFS-RT service-alert sidecar scheduled every 30 minutes (local OS scheduler).
+    \item \textbf{Storage/Query}: DuckDB + Parquet
+    \item \textbf{Serving}: Streamlit dashboard
+    \item \textbf{Live capture}: GTFS-RT service-alert sidecar scheduled every 30 minutes (local OS scheduler)
 \end{itemize}
 
 \textbf{Why we shifted from Airflow to local OS scheduling.}
 Based on course-scope guidance discussed with the instructor (keep deployment reproducible on student laptops and avoid server-grade operational dependencies), we moved from Airflow-first orchestration to local OS-native scheduling (\texttt{launchd} on macOS and Task Scheduler on Windows). The key reasons were:
 \begin{itemize}
-    \item only one recurring production task was needed (30-minute alert sidecar cycle),
-    \item Airflow introduces extra runtime services (scheduler/webserver/metadata DB) that are disproportionate for this scope,
-    \item local schedulers improve teammate portability and reduce setup/maintenance overhead,
-    \item this choice preserves focus on analytics quality rather than infrastructure operations.
+    \item only one recurring production task was needed (30-minute alert sidecar cycle)
+    \item Airflow introduces extra runtime services (scheduler/webserver/metadata DB) that are disproportionate for this scope
+    \item local schedulers improve teammate portability and reduce setup/maintenance overhead
+    \item this choice preserves focus on analytics quality rather than infrastructure operations
 \end{itemize}
 Airflow DAGs are retained as legacy/reference artifacts, but active execution for this project milestone is local-first.
+\textbf{Scope expansion note:} streetcar support has started at the data-model level and will be integrated into reliability marts and dashboard views in the next phase.
 
 \subsection{Algorithms and Implemented Components}
 \textbf{(1) Canonicalization strategy.}
@@ -122,25 +131,26 @@ Bus analytics use route-first canonicalization and subway analytics use station-
 \textbf{(2) Windowed ranking aggregation.}
 For selected service-date windows, rankings are recomputed from metrics marts using windowed aggregation and rank ordering on composite score (with frequency as tie-break context).
 
-\textbf{(3) Alert-hotspot alignment.}
-Let $H_K$ be historical top-$K$ hotspots and $A$ be live alerts in a validation window. We compute:
+\textbf{(3) Alert-hotspot alignment metric design (planned KPI, partial implementation).}
+Let $A$ be the set of live alerts in a validation window and let $H_K$ be the historical top-$K$ hotspots from the selected baseline window. The evaluation metrics are:
 \[
 \mathrm{HitRate}=\frac{1}{|A|}\sum_{a \in A}\mathbf{1}[a \in H_K],
 \qquad
 \mathrm{Lift}=\frac{\mathrm{HitRate}}{\mathrm{BaselineHitRate}}.
 \]
-This bridges descriptive historical analysis with live operational validation.
+where \(\mathrm{BaselineHitRate}\) is computed against a non-hotspot baseline set of equal size (or a random baseline under the same selector constraints).
 
-\subsection{Midterm Implementation Status}
-At midterm, core data contracts and dashboard flows are operational, including:
+Interpretation for stakeholders:
 \begin{itemize}
-    \item integrated historical bus/subway reliability marts,
-    \item multi-page analytical dashboard with date-windowed exploration,
-    \item live GTFS-RT alert ingestion sidecar and alignment mart population.
+    \item \textbf{HitRate}: ``Of all current live alerts, what fraction fall in historically high-risk hotspots?''
+    \item \textbf{Lift}: ``How much better is hotspot targeting than a baseline expectation?''
+    \item \(\mathrm{Lift}>1\): live alerts are more concentrated in historical hotspots than baseline (supports recurrence claim)
+    \item \(\mathrm{Lift}\approx 1\): hotspot concentration is similar to baseline (weak validation)
+    \item \(\mathrm{Lift}<1\): historical hotspots do not explain current live alerts well in that window
 \end{itemize}
-\textbf{Scope expansion note (streetcar).}
-To expand beyond the initial bus/subway focus, we have started streetcar integration at the data-model level (GTFS route-type support and mapping groundwork). Full streetcar reliability marts and dashboard exposure are in progress and are planned for the next project phase.
-Remaining work is focused on deeper statistical validation (significance/sensitivity analysis), robustness checks, and final report-quality presentation of results.
+This directly supports the TTC Pulse storyline by testing whether ``today's disruptions'' align with ``historically recurring hotspots''.
+
+Current implementation status at midterm: the dashboard currently surfaces alert-match status and selector-validity diagnostics in the Live Alert Alignment page, while explicit \(\mathrm{HitRate}\)/\(\mathrm{Lift}\) KPIs are specified and ready for the evaluation stage.
 
 \subsection{Limitations}
 \begin{itemize}

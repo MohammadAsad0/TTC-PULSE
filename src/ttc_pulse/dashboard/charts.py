@@ -8,6 +8,11 @@ import altair as alt
 import pandas as pd
 
 
+def _auto_bar_height(frame: pd.DataFrame, minimum: int, per_row: int = 24, maximum: int = 1400) -> int:
+    row_count = max(1, len(frame.index))
+    return max(minimum, min(maximum, row_count * per_row + 40))
+
+
 def line_chart(
     frame: pd.DataFrame,
     x: str,
@@ -54,7 +59,8 @@ def stacked_bar_chart(
             tooltip=list(tooltip or []),
         )
     )
-    return chart.properties(title=title, height=height)
+    resolved_height = _auto_bar_height(frame, minimum=height) if ":N" in y or ":O" in y else height
+    return chart.properties(title=title, height=resolved_height)
 
 
 def horizontal_bar_chart(
@@ -77,7 +83,7 @@ def horizontal_bar_chart(
     )
     if color is not None:
         chart = chart.encode(color=alt.Color(color))
-    return chart.properties(title=title, height=height)
+    return chart.properties(title=title, height=_auto_bar_height(frame, minimum=height))
 
 
 def heatmap_chart(

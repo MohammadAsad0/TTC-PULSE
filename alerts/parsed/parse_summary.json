@@ -6,13 +6,13 @@
     "parse_summary_json": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/parse_summary.json",
     "service_alert_entities_csv": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/service_alert_entities.csv"
   },
-  "parsed_at": "2026-03-23T14:44:09Z",
+  "parsed_at": "2026-03-24T22:48:55Z",
   "parsed_snapshot_count": 1,
   "protobuf_decode_available": true,
-  "rows_emitted": 32,
+  "rows_emitted": 22,
   "rows_written": {
     "parse_manifest_csv": 1,
-    "service_alert_entities_csv": 32
+    "service_alert_entities_csv": 22
   },
   "sample_rows_produced": true,
   "sidecar_log": {
@@ -20,8 +20,8 @@
     "artifact_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/service_alert_entities.csv",
     "details": "snapshot_count=1; protobuf_decode_available=True; parsed_snapshot_count=1; skipped_existing=0; append_outputs=True; caveats=-",
     "log_path": "/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/logs/step3_alerts_sidecar_log.csv",
-    "logged_at": "2026-03-23T14:44:09Z",
-    "row_count": 32,
+    "logged_at": "2026-03-24T22:48:55Z",
+    "row_count": 22,
     "status": "ok",
     "step": "parse_service_alert_snapshots"
   },

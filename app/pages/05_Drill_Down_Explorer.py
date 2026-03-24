@@ -25,17 +25,58 @@ from ttc_pulse.dashboard.formatting import DAY_NAME_ORDER, fmt_float, fmt_int
 from ttc_pulse.dashboard.loaders import query_table
 from ttc_pulse.dashboard.metric_config import METRIC_OPTIONS, metric_axis_title, resolve_metric_choice
 from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector
+from ttc_pulse.utils.project_setup import resolve_project_paths
 
 
-def _mode_config(mode: str) -> tuple[str, str, str, str]:
+def _mode_config(mode: str, scope: str = "station") -> tuple[str, str, str, str]:
     if mode == "bus":
         return "gold_route_time_metrics", "route_id_gtfs", "Route", "AND mode = 'bus'"
+    if scope == "line":
+        return "gold_route_time_metrics", "route_id_gtfs", "Line", "AND mode = 'subway'"
     return "gold_station_time_metrics", "station_canonical", "Station", ""
 
 
+@st.cache_data(ttl=300)
+def _load_route_catalog(route_mode: str) -> pd.DataFrame:
+    route_file = resolve_project_paths().project_root / "dimensions" / "dim_route_gtfs.parquet"
+    if not route_file.exists():
+        return pd.DataFrame(columns=["route_id", "route_short_name", "route_long_name"])
+
+    frame = pd.read_parquet(route_file)
+    if frame.empty:
+        return pd.DataFrame(columns=["route_id", "route_short_name", "route_long_name"])
+
+    if "route_mode" in frame.columns:
+        frame = frame[frame["route_mode"].astype(str).str.lower() == route_mode].copy()
+    if frame.empty:
+        return pd.DataFrame(columns=["route_id", "route_short_name", "route_long_name"])
+
+    frame["route_id"] = frame.get("route_id", "").astype(str).str.strip()
+    frame["route_short_name"] = frame.get("route_short_name", "").astype(str).str.strip()
+    frame["route_long_name"] = frame.get("route_long_name", "").astype(str).str.strip()
+    frame = frame[frame["route_id"] != ""].copy()
+    frame = frame.drop_duplicates(subset=["route_id"], keep="first")
+    frame.loc[frame["route_short_name"] == "", "route_short_name"] = frame["route_id"]
+    return frame[["route_id", "route_short_name", "route_long_name"]]
+
+
+def _format_entity_label(
+    mode: str,
+    entity_id: object,
+    entity_labels: dict[str, str] | None = None,
+    entity_prefix: str = "Route",
+) -> str:
+    entity_text = str(entity_id)
+    if entity_labels is not None:
+        return entity_labels.get(entity_text, f"{entity_prefix} {entity_text}")
+    if mode == "bus":
+        return f"Route {entity_text}"
+    return entity_text
+
+
 @st.cache_data(ttl=120)
-def _load_coverage(mode: str):
-    table_name, id_col, _, where_mode = _mode_config(mode)
+def _load_coverage(mode: str, scope: str = "station"):
+    table_name, id_col, _, where_mode = _mode_config(mode, scope)
     return query_table(
         table_name=table_name,
         query_template=f"""
@@ -51,8 +92,8 @@ def _load_coverage(mode: str):
 
 
 @st.cache_data(ttl=120)
-def _load_rankings(mode: str, start_date: str, end_date: str):
-    table_name, id_col, _, where_mode = _mode_config(mode)
+def _load_rankings(mode: str, start_date: str, end_date: str, scope: str = "station"):
+    table_name, id_col, _, where_mode = _mode_config(mode, scope)
     return query_table(
         table_name=table_name,
         query_template=f"""
@@ -101,8 +142,8 @@ def _load_rankings(mode: str, start_date: str, end_date: str):
 
 
 @st.cache_data(ttl=120)
-def _load_year_metrics(mode: str, entity_id: str, start_date: str, end_date: str):
-    table_name, id_col, _, where_mode = _mode_config(mode)
+def _load_year_metrics(mode: str, entity_id: str, start_date: str, end_date: str, scope: str = "station"):
+    table_name, id_col, _, where_mode = _mode_config(mode, scope)
     return query_table(
         table_name=table_name,
         query_template=f"""
@@ -142,8 +183,8 @@ def _load_year_metrics(mode: str, entity_id: str, start_date: str, end_date: str
 
 
 @st.cache_data(ttl=120)
-def _load_month_metrics(mode: str, entity_id: str, year: int, start_date: str, end_date: str):
-    table_name, id_col, _, where_mode = _mode_config(mode)
+def _load_month_metrics(mode: str, entity_id: str, year: int, start_date: str, end_date: str, scope: str = "station"):
+    table_name, id_col, _, where_mode = _mode_config(mode, scope)
     return query_table(
         table_name=table_name,
         query_template=f"""
@@ -214,8 +255,9 @@ def _load_weekday_metrics(
     month_num: int | None,
     start_date: str,
     end_date: str,
+    scope: str = "station",
 ):
-    table_name, id_col, _, where_mode = _mode_config(mode)
+    table_name, id_col, _, where_mode = _mode_config(mode, scope)
     return query_table(
         table_name=table_name,
         query_template=f"""
@@ -265,8 +307,9 @@ def _load_time_bin_metrics(
     day_name: str | None,
     start_date: str,
     end_date: str,
+    scope: str = "station",
 ):
-    table_name, id_col, _, where_mode = _mode_config(mode)
+    table_name, id_col, _, where_mode = _mode_config(mode, scope)
     return query_table(
         table_name=table_name,
         query_template=f"""
@@ -339,8 +382,9 @@ def _load_weekly_heatmap_metrics(
     month_num: int,
     start_date: str,
     end_date: str,
+    scope: str = "station",
 ):
-    table_name, id_col, _, where_mode = _mode_config(mode)
+    table_name, id_col, _, where_mode = _mode_config(mode, scope)
     return query_table(
         table_name=table_name,
         query_template=f"""
@@ -480,6 +524,22 @@ def _extract_day_name_from_chart_event(event_state: object, selection_name: str 
     return day_name
 
 
+def _sync_dropdown_from_chart_if_changed(
+    *,
+    chart_value: object | None,
+    valid_values: set[object],
+    state_key: str,
+    select_key: str,
+    chart_memory_key: str,
+) -> None:
+    """Apply chart selection to widget state only when chart selection changed."""
+    previous_chart_value = st.session_state.get(chart_memory_key)
+    if chart_value in valid_values and chart_value != previous_chart_value:
+        st.session_state[state_key] = chart_value
+        st.session_state[select_key] = chart_value
+    st.session_state[chart_memory_key] = chart_value if chart_value in valid_values else None
+
+
 st.title("Drill-Down Explorer")
 st.caption("Inspect one route/station deeply before taking action.")
 
@@ -492,9 +552,13 @@ page_story_header(
 )
 
 selected_mode = st.radio("Explorer Mode", options=["bus", "subway"], horizontal=True)
-table_name, _, entity_label, _ = _mode_config(selected_mode)
+subway_scope = "station"
+if selected_mode == "subway":
+    subway_scope = st.radio("Subway scope", options=["station", "line"], horizontal=True, key="drill_subway_scope")
 
-coverage_result = _load_coverage(selected_mode)
+table_name, _, entity_label, _ = _mode_config(selected_mode, subway_scope)
+
+coverage_result = _load_coverage(selected_mode, subway_scope)
 if coverage_result.status in {"missing", "error"}:
     st.error(coverage_result.message)
     st.stop()
@@ -525,7 +589,7 @@ selected_start_iso = selected_start_date.isoformat()
 selected_end_iso = selected_end_date.isoformat()
 
 window_signature_key = "drill_window_signature"
-window_signature = (selected_mode, selected_start_iso, selected_end_iso)
+window_signature = (selected_mode, subway_scope, selected_start_iso, selected_end_iso)
 if st.session_state.get(window_signature_key) != window_signature:
     for state_key in list(st.session_state.keys()):
         if state_key.startswith(
@@ -533,15 +597,15 @@ if st.session_state.get(window_signature_key) != window_signature:
                 "drill_selected_year_",
                 "drill_selected_month_",
                 "drill_selected_weekday_",
-                "drill_year_select_",
-                "drill_month_select_",
-                "drill_weekday_select_",
+                "drill_year_chart_selection_",
+                "drill_month_chart_selection_",
+                "drill_weekday_chart_selection_",
             )
         ):
             del st.session_state[state_key]
     st.session_state[window_signature_key] = window_signature
 
-ranking_result = _load_rankings(selected_mode, selected_start_iso, selected_end_iso)
+ranking_result = _load_rankings(selected_mode, selected_start_iso, selected_end_iso, subway_scope)
 if ranking_result.status in {"missing", "error"}:
     st.error(ranking_result.message)
     st.stop()
@@ -559,8 +623,53 @@ metric_title = metric_resolution.resolved_label
 ranking = ranking.sort_values([metric_column, "rank_position"], ascending=[False, True])
 entity_options = ranking["entity_id"].astype(str).tolist()
 default_entity = entity_options[0]
-selected_entity = st.selectbox(f"Selected {entity_label}", options=entity_options, index=0)
-selected_row = ranking[ranking["entity_id"].astype(str) == str(selected_entity)].iloc[0]
+bus_route_labels: dict[str, str] = {}
+if selected_mode == "bus" or (selected_mode == "subway" and subway_scope == "line"):
+    route_catalog = _load_route_catalog("bus" if selected_mode == "bus" else "subway")
+    prefix = "Route" if selected_mode == "bus" else "Line"
+    for row in route_catalog.itertuples(index=False):
+        route_id = str(getattr(row, "route_id", "")).strip()
+        if not route_id:
+            continue
+        route_short_name = str(getattr(row, "route_short_name", "")).strip() or route_id
+        route_long_name = str(getattr(row, "route_long_name", "")).strip()
+        if route_long_name:
+            bus_route_labels[route_id] = f"{prefix} {route_short_name} — {route_long_name}"
+        else:
+            bus_route_labels[route_id] = f"{prefix} {route_short_name}"
+bus_label_to_route = {label: route_id for route_id, label in bus_route_labels.items()}
+entity_state_key = f"drill_selected_entity_{selected_mode}"
+entity_select_key = f"drill_entity_select_{selected_mode}"
+if st.session_state.get(entity_state_key) not in entity_options:
+    st.session_state[entity_state_key] = default_entity
+if st.session_state.get(entity_select_key) not in entity_options:
+    st.session_state[entity_select_key] = st.session_state[entity_state_key]
+selected_entity = st.selectbox(
+    f"Selected {entity_label}",
+    options=entity_options,
+    index=entity_options.index(st.session_state[entity_select_key]),
+    format_func=lambda entity_id: _format_entity_label(
+        selected_mode,
+        entity_id,
+        bus_route_labels if bus_route_labels else None,
+        "Route" if selected_mode == "bus" else "Line",
+    ),
+    key=entity_select_key,
+)
+selected_entity_id = str(selected_entity)
+if selected_mode == "bus" and selected_entity_id not in entity_options:
+    selected_entity_id = bus_label_to_route.get(selected_entity_id, selected_entity_id)
+if selected_entity_id not in entity_options:
+    selected_entity_id = default_entity
+
+st.session_state[entity_state_key] = selected_entity_id
+selected_row = ranking[ranking["entity_id"].astype(str) == selected_entity_id].iloc[0]
+selected_entity_display = _format_entity_label(
+    selected_mode,
+    selected_entity_id,
+    bus_route_labels if bus_route_labels else None,
+    "Route" if selected_mode == "bus" else "Line",
+)
 
 kpi_a, kpi_b, kpi_c, kpi_d, kpi_e = st.columns(5)
 kpi_a.metric("Composite", fmt_float(selected_row["composite_score"], digits=3))
@@ -569,7 +678,7 @@ kpi_c.metric("Severity P90", fmt_float(selected_row["severity_p90"], digits=2))
 kpi_d.metric("Regularity P90", fmt_float(selected_row["regularity_p90"], digits=2))
 kpi_e.metric("Cause Mix", fmt_float(selected_row["cause_mix_score"], digits=3))
 
-year_result = _load_year_metrics(selected_mode, str(selected_entity), selected_start_iso, selected_end_iso)
+year_result = _load_year_metrics(selected_mode, selected_entity_id, selected_start_iso, selected_end_iso, subway_scope)
 if year_result.status in {"missing", "error"}:
     st.error(year_result.message)
     st.stop()
@@ -588,6 +697,7 @@ if not year_options:
 
 selection_name = "year_pick"
 year_click = alt.selection_point(name=selection_name, fields=["year"], empty=True, on="click")
+year_chart_height = max(280, len(year_frame.index) * 24 + 40)
 year_chart = (
     alt.Chart(year_frame)
     .mark_bar()
@@ -598,10 +708,10 @@ year_chart = (
         tooltip=["year:Q", f"{metric_column}:Q", "frequency:Q", "severity_p90:Q", "regularity_p90:Q", "cause_mix_score:Q", "composite_score:Q"],
     )
     .add_params(year_click)
-    .properties(title=f"{entity_label} {selected_entity}: Year Profile (click a bar to select year)", height=280)
+    .properties(title=f"{selected_entity_display}: Year Profile (click a bar to select year)", height=year_chart_height)
 )
 
-chart_key = f"drill_year_chart_{selected_mode}_{selected_entity}_{metric_column}"
+chart_key = f"drill_year_chart_{selected_mode}_{selected_entity_id}_{metric_column}"
 year_event = st.altair_chart(
     year_chart,
     use_container_width=True,
@@ -611,25 +721,39 @@ year_event = st.altair_chart(
 )
 
 selected_year_from_chart = _extract_year_from_chart_event(year_event, selection_name=selection_name)
-year_state_key = f"drill_selected_year_{selected_mode}_{selected_entity}"
-year_select_key = f"drill_year_select_{selected_mode}_{selected_entity}"
-if selected_year_from_chart in year_options:
-    st.session_state[year_state_key] = int(selected_year_from_chart)
-    st.session_state[year_select_key] = int(selected_year_from_chart)
+year_state_key = f"drill_selected_year_{selected_mode}_{selected_entity_id}"
+year_select_key = f"drill_year_select_{selected_mode}_{selected_entity_id}"
+year_chart_memory_key = f"drill_year_chart_selection_{selected_mode}_{selected_entity_id}"
+_sync_dropdown_from_chart_if_changed(
+    chart_value=selected_year_from_chart,
+    valid_values={int(year) for year in year_options},
+    state_key=year_state_key,
+    select_key=year_select_key,
+    chart_memory_key=year_chart_memory_key,
+)
 
 default_year = st.session_state.get(year_state_key, year_options[0])
 if default_year not in year_options:
     default_year = year_options[0]
+if st.session_state.get(year_select_key) not in year_options:
+    st.session_state[year_select_key] = default_year
 selected_year = st.selectbox(
     "Selected Year (click chart or use dropdown)",
     options=year_options,
-    index=year_options.index(default_year),
+    index=year_options.index(st.session_state[year_select_key]),
     key=year_select_key,
 )
 st.session_state[year_state_key] = int(selected_year)
 
 
-month_result = _load_month_metrics(selected_mode, str(selected_entity), int(selected_year), selected_start_iso, selected_end_iso)
+month_result = _load_month_metrics(
+    selected_mode,
+    selected_entity_id,
+    int(selected_year),
+    selected_start_iso,
+    selected_end_iso,
+    subway_scope,
+)
 if month_result.status in {"missing", "error"}:
     st.error(month_result.message)
     st.stop()
@@ -666,10 +790,10 @@ month_chart = (
         tooltip=["month_start:T", f"{metric_column}:Q", "frequency:Q", "severity_p90:Q", "regularity_p90:Q", "cause_mix_score:Q", "composite_score:Q"],
     )
     .add_params(month_click)
-    .properties(title=f"Monthly Profile ({selected_year}) (click a bar to select month)", height=260)
+    .properties(title=f"Monthly Profile ({selected_year}) (click a bar to select month)", height=max(260, len(month_frame.index) * 24 + 40))
 )
 
-month_chart_key = f"drill_month_chart_{selected_mode}_{selected_entity}_{selected_year}_{metric_column}"
+month_chart_key = f"drill_month_chart_{selected_mode}_{selected_entity_id}_{selected_year}_{metric_column}"
 month_event = st.altair_chart(
     month_chart,
     use_container_width=True,
@@ -682,20 +806,27 @@ month_choice_to_num = dict(zip(month_frame["month_choice"], month_frame["month_n
 month_num_to_choice = {month_num: month_choice for month_choice, month_num in month_choice_to_num.items()}
 month_options = ["All months"] + month_frame["month_choice"].tolist()
 selected_month_from_chart = _extract_month_from_chart_event(month_event, selection_name=month_selection_name)
-month_state_key = f"drill_selected_month_{selected_mode}_{selected_entity}_{selected_year}"
-month_select_key = f"drill_month_select_{selected_mode}_{selected_entity}_{selected_year}"
-if selected_month_from_chart in month_num_to_choice:
-    st.session_state[month_state_key] = int(selected_month_from_chart)
-    st.session_state[month_select_key] = month_num_to_choice[int(selected_month_from_chart)]
+month_state_key = f"drill_selected_month_{selected_mode}_{selected_entity_id}_{selected_year}"
+month_select_key = f"drill_month_select_{selected_mode}_{selected_entity_id}_{selected_year}"
+month_chart_memory_key = f"drill_month_chart_selection_{selected_mode}_{selected_entity_id}_{selected_year}"
+_sync_dropdown_from_chart_if_changed(
+    chart_value=selected_month_from_chart,
+    valid_values=set(month_num_to_choice.keys()),
+    state_key=month_state_key,
+    select_key=month_select_key,
+    chart_memory_key=month_chart_memory_key,
+)
 
 default_month_num = st.session_state.get(month_state_key)
 default_month_choice = month_num_to_choice.get(default_month_num, "All months")
 if default_month_choice not in month_options:
     default_month_choice = "All months"
+if st.session_state.get(month_select_key) not in month_options:
+    st.session_state[month_select_key] = default_month_choice
 selected_month_choice = st.selectbox(
     "Selected Month (click chart or use dropdown)",
     options=month_options,
-    index=month_options.index(default_month_choice),
+    index=month_options.index(st.session_state[month_select_key]),
     key=month_select_key,
 )
 selected_month_num = month_choice_to_num.get(selected_month_choice)
@@ -704,11 +835,12 @@ selected_month_label = selected_month_choice.split(" (")[0] if selected_month_nu
 
 weekday_result = _load_weekday_metrics(
     selected_mode,
-    str(selected_entity),
+    selected_entity_id,
     int(selected_year),
     selected_month_num,
     selected_start_iso,
     selected_end_iso,
+    subway_scope,
 )
 if weekday_result.status in {"missing", "error"}:
     st.error(weekday_result.message)
@@ -739,11 +871,11 @@ weekday_chart = (
         tooltip=["day_name:N", f"{metric_column}:Q", "frequency:Q", "severity_p90:Q", "regularity_p90:Q", "cause_mix_score:Q", "composite_score:Q"],
     )
     .add_params(weekday_click)
-    .properties(title=f"Weekday Profile ({weekday_scope}) (click a bar to select weekday)", height=260)
+    .properties(title=f"Weekday Profile ({weekday_scope}) (click a bar to select weekday)", height=max(260, len(weekday_frame.index) * 28 + 40))
 )
 
 weekday_chart_key = (
-    f"drill_weekday_chart_{selected_mode}_{selected_entity}_{selected_year}_"
+    f"drill_weekday_chart_{selected_mode}_{selected_entity_id}_{selected_year}_"
     f"{selected_month_num if selected_month_num is not None else 'all'}_{metric_column}"
 )
 weekday_event = st.altair_chart(
@@ -757,19 +889,28 @@ weekday_event = st.altair_chart(
 weekday_options = ["All weekdays"] + DAY_NAME_ORDER
 selected_weekday_from_chart = _extract_day_name_from_chart_event(weekday_event, selection_name=weekday_selection_name)
 weekday_scope_token = selected_month_num if selected_month_num is not None else "all_months"
-weekday_state_key = f"drill_selected_weekday_{selected_mode}_{selected_entity}_{selected_year}_{weekday_scope_token}"
-weekday_select_key = f"drill_weekday_select_{selected_mode}_{selected_entity}_{selected_year}_{weekday_scope_token}"
-if selected_weekday_from_chart in DAY_NAME_ORDER:
-    st.session_state[weekday_state_key] = selected_weekday_from_chart
-    st.session_state[weekday_select_key] = selected_weekday_from_chart
+weekday_state_key = f"drill_selected_weekday_{selected_mode}_{selected_entity_id}_{selected_year}_{weekday_scope_token}"
+weekday_select_key = f"drill_weekday_select_{selected_mode}_{selected_entity_id}_{selected_year}_{weekday_scope_token}"
+weekday_chart_memory_key = (
+    f"drill_weekday_chart_selection_{selected_mode}_{selected_entity_id}_{selected_year}_{weekday_scope_token}"
+)
+_sync_dropdown_from_chart_if_changed(
+    chart_value=selected_weekday_from_chart,
+    valid_values=set(DAY_NAME_ORDER),
+    state_key=weekday_state_key,
+    select_key=weekday_select_key,
+    chart_memory_key=weekday_chart_memory_key,
+)
 
 default_weekday_choice = st.session_state.get(weekday_state_key, "All weekdays")
 if default_weekday_choice not in weekday_options:
     default_weekday_choice = "All weekdays"
+if st.session_state.get(weekday_select_key) not in weekday_options:
+    st.session_state[weekday_select_key] = default_weekday_choice
 selected_weekday_choice = st.selectbox(
     "Selected Weekday (click chart or use dropdown)",
     options=weekday_options,
-    index=weekday_options.index(default_weekday_choice),
+    index=weekday_options.index(st.session_state[weekday_select_key]),
     key=weekday_select_key,
 )
 selected_weekday = None if selected_weekday_choice == "All weekdays" else selected_weekday_choice
@@ -778,11 +919,12 @@ st.session_state[weekday_state_key] = selected_weekday_choice
 if selected_month_num is not None:
     weekly_heatmap_result = _load_weekly_heatmap_metrics(
         selected_mode,
-        str(selected_entity),
+        selected_entity_id,
         int(selected_year),
         int(selected_month_num),
         selected_start_iso,
         selected_end_iso,
+        subway_scope,
     )
     if weekly_heatmap_result.status == "ok" and not weekly_heatmap_result.frame.empty:
         weekly_heatmap = weekly_heatmap_result.frame.copy()
@@ -815,12 +957,13 @@ if selected_month_num is not None:
 
 time_bin_result = _load_time_bin_metrics(
     selected_mode,
-    str(selected_entity),
+    selected_entity_id,
     int(selected_year),
     selected_month_num,
     selected_weekday,
     selected_start_iso,
     selected_end_iso,
+    subway_scope,
 )
 if time_bin_result.status == "ok" and not time_bin_result.frame.empty:
     time_bin_frame = time_bin_result.frame.copy()
@@ -844,7 +987,7 @@ if time_bin_result.status == "ok" and not time_bin_result.frame.empty:
             y=alt.Y(f"{metric_column}:Q", title=metric_axis_title(metric_title)),
             tooltip=["time_bin:N", f"{metric_column}:Q", "frequency:Q", "severity_p90:Q", "regularity_p90:Q", "cause_mix_score:Q", "composite_score:Q"],
         )
-        .properties(title=f"Time-of-Day Profile ({time_scope})", height=280)
+        .properties(title=f"Time-of-Day Profile ({time_scope})", height=max(280, len(time_bin_frame.index) * 28 + 40))
     )
     st.altair_chart(time_chart, use_container_width=True)
 elif time_bin_result.status in {"missing", "error"}:

@@ -53,8 +53,8 @@ def _load_table_status() -> tuple[Path, pd.DataFrame]:
     return db_path, frame
 
 
-st.title("QA / Methodology")
-st.caption("Trust the analysis without interrupting the main story flow.")
+st.title("Technical Appendix")
+st.caption("Data-quality and linkage diagnostics, kept outside the main story flow.")
 
 mode = story_mode_selector(sidebar=True, key="story_mode")
 presentation = is_presentation_mode(mode)

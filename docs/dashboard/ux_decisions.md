@@ -29,7 +29,7 @@
 - Merged bus/subway drill pathways into one `Drill-Down Explorer` page while preserving:
   - route-first bus logic
   - station-first subway logic
-- Demoted standalone linkage QA into `QA / Methodology`.
+- Demoted standalone linkage QA into `Technical Appendix`.
 
 ## Narrative Framing Pattern
 - Every page starts with:

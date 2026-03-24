@@ -14,7 +14,7 @@
 | 4 | Cause Signatures | Show why hotspots fail (dominant incident categories over time). | `gold_delay_events_core` |
 | 5 | Drill-Down Explorer | Route-first/station-first deep dive for one selected hotspot. | `gold_route_time_metrics`, `gold_station_time_metrics` |
 | 6 | Live Alert Alignment | Validate historical hotspot story against live GTFS-RT alert outcomes. | `gold_alert_validation`, `gold_linkage_quality` |
-| 7 | QA / Methodology | Expose trust diagnostics without cluttering core story pages. | `gold_linkage_quality`, Gold table snapshots |
+| 7 | Technical Appendix | Expose trust diagnostics without cluttering core story pages. | `gold_linkage_quality`, Gold table snapshots |
 
 ## Archived Pages (V3 -> V4)
 - V3 operational pages were moved to `app/pages_archive/v3_pre_v4/`.

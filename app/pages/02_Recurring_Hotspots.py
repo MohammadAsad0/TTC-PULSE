@@ -29,6 +29,29 @@ from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question
 
 
 @st.cache_data(ttl=120)
+def _load_route_catalog(route_mode: str) -> pd.DataFrame:
+    route_file = resolve_project_root() / "dimensions" / "dim_route_gtfs.parquet"
+    if not route_file.exists():
+        return pd.DataFrame(columns=["route_id", "route_short_name", "route_long_name"])
+
+    frame = pd.read_parquet(route_file)
+    if frame.empty or "route_mode" not in frame.columns:
+        return pd.DataFrame(columns=["route_id", "route_short_name", "route_long_name"])
+
+    frame = frame[frame["route_mode"].astype(str).str.lower() == route_mode].copy()
+    if frame.empty:
+        return pd.DataFrame(columns=["route_id", "route_short_name", "route_long_name"])
+
+    frame["route_id"] = frame.get("route_id", "").astype(str).str.strip()
+    frame["route_short_name"] = frame.get("route_short_name", "").astype(str).str.strip()
+    frame["route_long_name"] = frame.get("route_long_name", "").astype(str).str.strip()
+    frame = frame[frame["route_id"] != ""].copy()
+    frame = frame.drop_duplicates(subset=["route_id"], keep="first")
+    frame.loc[frame["route_short_name"] == "", "route_short_name"] = frame["route_id"]
+    return frame[["route_id", "route_short_name", "route_long_name"]]
+
+
+@st.cache_data(ttl=120)
 def _load_bus_coverage_window():
     return query_table(
         table_name="gold_route_time_metrics",
@@ -38,6 +61,22 @@ def _load_bus_coverage_window():
             MAX(service_date) AS max_service_date
         FROM {source}
         WHERE mode = 'bus'
+            AND route_id_gtfs IS NOT NULL
+            AND service_date IS NOT NULL
+        """,
+    )
+
+
+@st.cache_data(ttl=120)
+def _load_subway_line_coverage_window():
+    return query_table(
+        table_name="gold_route_time_metrics",
+        query_template="""
+        SELECT
+            MIN(service_date) AS min_service_date,
+            MAX(service_date) AS max_service_date
+        FROM {source}
+        WHERE mode = 'subway'
             AND route_id_gtfs IS NOT NULL
             AND service_date IS NOT NULL
         """,
@@ -73,6 +112,54 @@ def _load_bus_route_rankings(start_date: str, end_date: str):
                 AVG(cause_mix_score) FILTER (WHERE cause_mix_score IS NOT NULL) AS cause_mix_score
             FROM {source}
             WHERE mode = 'bus'
+                AND route_id_gtfs IS NOT NULL
+                AND service_date BETWEEN ? AND ?
+            GROUP BY 1
+        ),
+        scored AS (
+            SELECT
+                entity_id,
+                frequency,
+                severity_p90,
+                regularity_p90,
+                COALESCE(cause_mix_score, 0.0) AS cause_mix_score,
+                (
+                    0.35 * COALESCE((frequency - AVG(frequency) OVER()) / NULLIF(STDDEV_SAMP(frequency) OVER(), 0.0), 0.0)
+                    + 0.30 * COALESCE((severity_p90 - AVG(severity_p90) OVER()) / NULLIF(STDDEV_SAMP(severity_p90) OVER(), 0.0), 0.0)
+                    + 0.20 * COALESCE((regularity_p90 - AVG(regularity_p90) OVER()) / NULLIF(STDDEV_SAMP(regularity_p90) OVER(), 0.0), 0.0)
+                    + 0.15 * COALESCE(cause_mix_score, 0.0)
+                ) AS composite_score
+            FROM route_agg
+        )
+        SELECT
+            entity_id,
+            RANK() OVER (ORDER BY composite_score DESC NULLS LAST, frequency DESC) AS rank_position,
+            CAST(frequency AS BIGINT) AS frequency,
+            severity_p90,
+            regularity_p90,
+            cause_mix_score,
+            composite_score
+        FROM scored
+        ORDER BY rank_position ASC, entity_id
+        """,
+        params=[start_date, end_date],
+    )
+
+
+@st.cache_data(ttl=120)
+def _load_subway_line_rankings(start_date: str, end_date: str):
+    return query_table(
+        table_name="gold_route_time_metrics",
+        query_template="""
+        WITH route_agg AS (
+            SELECT
+                route_id_gtfs AS entity_id,
+                SUM(frequency)::DOUBLE AS frequency,
+                quantile_cont(severity_p90, 0.9) FILTER (WHERE severity_p90 IS NOT NULL) AS severity_p90,
+                quantile_cont(regularity_p90, 0.9) FILTER (WHERE regularity_p90 IS NOT NULL) AS regularity_p90,
+                AVG(cause_mix_score) FILTER (WHERE cause_mix_score IS NOT NULL) AS cause_mix_score
+            FROM {source}
+            WHERE mode = 'subway'
                 AND route_id_gtfs IS NOT NULL
                 AND service_date BETWEEN ? AND ?
             GROUP BY 1
@@ -294,7 +381,15 @@ page_story_header(
 )
 
 selected_mode = st.radio("Entity scope", options=["bus", "subway"], horizontal=True)
-coverage_result = _load_bus_coverage_window() if selected_mode == "bus" else _load_station_coverage_window()
+subway_scope = "station"
+if selected_mode == "subway":
+    subway_scope = st.radio("Subway scope", options=["station", "line"], horizontal=True, key="subway_hotspot_scope")
+
+coverage_result = (
+    _load_bus_coverage_window()
+    if selected_mode == "bus"
+    else _load_subway_line_coverage_window() if subway_scope == "line" else _load_station_coverage_window()
+)
 if coverage_result.status in {"missing", "error"}:
     st.error(coverage_result.message)
     st.stop()
@@ -316,7 +411,7 @@ selected_metric_label = st.selectbox("Metric", options=METRIC_OPTIONS, index=0)
 default_top_n = 15 if presentation else 25
 top_n = st.slider("Top N", min_value=5, max_value=100, value=default_top_n, step=5)
 
-if selected_mode == "subway":
+if selected_mode == "subway" and subway_scope == "station":
     min_frequency = st.slider("Minimum Frequency", min_value=0, max_value=500, value=0 if not presentation else 20, step=5)
 else:
     min_frequency = 0
@@ -335,7 +430,7 @@ selected_end_iso = selected_end_date.isoformat()
 ranking_result = (
     _load_bus_route_rankings(selected_start_iso, selected_end_iso)
     if selected_mode == "bus"
-    else _load_station_rankings(selected_start_iso, selected_end_iso)
+    else _load_subway_line_rankings(selected_start_iso, selected_end_iso) if subway_scope == "line" else _load_station_rankings(selected_start_iso, selected_end_iso)
 )
 if ranking_result.status in {"missing", "error"}:
     st.error(ranking_result.message)
@@ -350,6 +445,26 @@ if ranking.empty:
     st.info("No entities remain after filters.")
     st.stop()
 
+route_labels: dict[str, str] = {}
+if selected_mode == "bus" or (selected_mode == "subway" and subway_scope == "line"):
+    route_mode = "bus" if selected_mode == "bus" else "subway"
+    route_catalog = _load_route_catalog(route_mode)
+    prefix = "Route" if selected_mode == "bus" else "Line"
+    for row in route_catalog.itertuples(index=False):
+        route_id = str(getattr(row, "route_id", "")).strip()
+        if not route_id:
+            continue
+        route_short_name = str(getattr(row, "route_short_name", "")).strip() or route_id
+        route_long_name = str(getattr(row, "route_long_name", "")).strip()
+        if route_long_name:
+            route_labels[route_id] = f"{prefix} {route_short_name} — {route_long_name}"
+        else:
+            route_labels[route_id] = f"{prefix} {route_short_name}"
+
+def _entity_display(entity_id: object) -> str:
+    entity_text = str(entity_id)
+    return route_labels.get(entity_text, entity_text if selected_mode == "subway" and subway_scope == "station" else f"{'Route' if selected_mode == 'bus' else 'Line'} {entity_text}")
+
 metric_resolution = resolve_metric_choice(ranking, selected_metric_label)
 if metric_resolution.fallback_used and metric_resolution.message:
     st.info(metric_resolution.message)
@@ -363,19 +478,21 @@ else:
     ranking = ranking.sort_values([metric_column, "rank_position"], ascending=[False, True]).head(top_n)
 
 entity_title = "Route" if selected_mode == "bus" else "Station"
+if selected_mode == "subway" and subway_scope == "line":
+    entity_title = "Line"
 kpi_a, kpi_b, kpi_c = st.columns(3)
 kpi_a.metric(f"{entity_title}s Shown", fmt_int(len(ranking)))
 kpi_b.metric("Top Frequency", fmt_int(ranking["frequency"].max()))
 kpi_c.metric("Top Composite", fmt_float(ranking["composite_score"].max(), digits=3))
 
 chart = (
-    alt.Chart(ranking)
+    alt.Chart(ranking.assign(entity_label=ranking["entity_id"].map(_entity_display)))
     .mark_bar()
     .encode(
         x=alt.X(f"{metric_column}:Q", title=metric_axis_title(metric_title)),
-        y=alt.Y("entity_id:N", sort="-x", title=entity_title),
+        y=alt.Y("entity_label:N", sort="-x", title=entity_title),
         tooltip=[
-            "entity_id:N",
+            "entity_label:N",
             "rank_position:Q",
             f"{metric_column}:Q",
             "frequency:Q",
@@ -387,14 +504,16 @@ chart = (
     )
     .properties(
         title=f"Top {selected_mode.title()} {entity_title}s by {metric_title} ({selected_start_iso} to {selected_end_iso})",
-        height=360,
+        height=min(1400, max(360, len(ranking.index) * 24 + 40)),
     )
 )
 st.altair_chart(chart, use_container_width=True)
 
 if not presentation:
+    ranking_view = ranking.copy()
+    ranking_view["entity_id"] = ranking_view["entity_id"].map(_entity_display)
     st.dataframe(
-        ranking[["entity_id", "rank_position", "frequency", "severity_p90", "regularity_p90", "cause_mix_score", "composite_score"]],
+        ranking_view[["entity_id", "rank_position", "frequency", "severity_p90", "regularity_p90", "cause_mix_score", "composite_score"]],
         use_container_width=True,
         hide_index=True,
     )
@@ -468,6 +587,8 @@ else:
 
             if selected_mode == "bus":
                 st.warning("Bus spatial points are provisional route-centroid estimates and should be interpreted directionally.")
+            elif subway_scope == "line":
+                st.info("Subway line rankings are shown above. Spatial point mapping stays at station level until line geometry is finalized.")
             if not presentation:
                 st.dataframe(spatial, use_container_width=True, hide_index=True)
 
