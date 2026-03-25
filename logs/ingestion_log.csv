@@ -1,0 +1,33 @@
+run_id,logged_at,step,status,row_count,details
+20260317T194704Z,2026-03-17T19:47:04Z,ensure_duckdb,ok,1,duckdb=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/data/ttc_pulse.duckdb
+20260317T194704Z,2026-03-17T19:47:04Z,ingest_bus_registry,ok,100,files=100
+20260317T194704Z,2026-03-17T19:47:04Z,ingest_subway_registry,ok,61,files=61
+20260317T194704Z,2026-03-17T19:47:05Z,ingest_gtfs_registry,ok,7,files=7
+20260317T194704Z,2026-03-17T19:47:05Z,register_gtfsrt_snapshots,ok,2,files=2
+20260317T194704Z,2026-03-17T19:47:08Z,build_bronze_bus,ok,776435,row-preserving bus bronze with lineage
+20260317T194704Z,2026-03-17T19:47:10Z,build_bronze_subway,ok,250558,row-preserving subway bronze with lineage
+20260317T194704Z,2026-03-17T19:47:10Z,build_bronze_gtfs_routes,ok,229,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/routes.txt
+20260317T194704Z,2026-03-17T19:47:11Z,build_bronze_gtfs_trips,ok,133665,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/trips.txt
+20260317T194704Z,2026-03-17T19:47:23Z,build_bronze_gtfs_stop_times,ok,4249149,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/stop_times.txt
+20260317T194704Z,2026-03-17T19:47:23Z,build_bronze_gtfs_stops,ok,9417,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/stops.txt
+20260317T194704Z,2026-03-17T19:47:23Z,build_bronze_gtfs_calendar,ok,8,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/calendar.txt
+20260317T194704Z,2026-03-17T19:47:23Z,build_bronze_gtfs_calendar_dates,ok,7,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/calendar_dates.txt
+20260317T194704Z,2026-03-17T19:47:25Z,build_bronze_gtfs_shapes,ok,1025672,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/shapes.txt
+20260317T194704Z,2026-03-17T19:47:25Z,build_gtfsrt_shell_tables,ok,0,snapshots found; shell tables created pending parser implementation
+20260317T194704Z,2026-03-17T19:47:25Z,write_docs,ok,2,source_inventory.md and step1_summary.md updated
+20260324T025223Z,2026-03-24T02:52:23Z,ensure_duckdb,ok,1,duckdb=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/data/ttc_pulse.duckdb
+20260324T025223Z,2026-03-24T02:52:25Z,ingest_bus_registry,ok,100,files=100
+20260324T025223Z,2026-03-24T02:52:25Z,ingest_subway_registry,ok,61,files=61
+20260324T025223Z,2026-03-24T02:52:26Z,ingest_gtfs_registry,ok,7,files=7
+20260324T025223Z,2026-03-24T02:52:26Z,register_gtfsrt_snapshots,ok,46,files=46
+20260324T025223Z,2026-03-24T02:52:37Z,build_bronze_bus,ok,776435,row-preserving bus bronze with lineage
+20260324T025223Z,2026-03-24T02:52:43Z,build_bronze_subway,ok,250558,row-preserving subway bronze with lineage
+20260324T025223Z,2026-03-24T02:52:43Z,build_bronze_gtfs_routes,ok,229,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/csv/routes.csv
+20260324T025223Z,2026-03-24T02:52:44Z,build_bronze_gtfs_trips,ok,133665,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/csv/trips.csv
+20260324T025223Z,2026-03-24T02:53:25Z,build_bronze_gtfs_stop_times,ok,4249149,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/csv/stop_times.csv
+20260324T025223Z,2026-03-24T02:53:25Z,build_bronze_gtfs_stops,ok,9417,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/csv/stops.csv
+20260324T025223Z,2026-03-24T02:53:25Z,build_bronze_gtfs_calendar,ok,8,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/csv/calendar.csv
+20260324T025223Z,2026-03-24T02:53:25Z,build_bronze_gtfs_calendar_dates,ok,7,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/csv/calendar_dates.csv
+20260324T025223Z,2026-03-24T02:53:33Z,build_bronze_gtfs_shapes,ok,1025672,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/csv/shapes.csv
+20260324T025223Z,2026-03-24T02:53:33Z,load_gtfsrt_parsed_into_bronze,ok,2232,status=loaded; parsed_rows=2232; source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/service_alert_entities.csv
+20260324T025223Z,2026-03-24T02:53:33Z,write_docs,ok,2,source_inventory.md and step1_summary.md updated
