@@ -1,5 +1,5 @@
 mode: subway
-source_root: datasets/03_subway_delay/csv
+source_root: data/subway
 include_patterns:
   - "ttc-subway-delay-data-*.csv"
   - "ttc-subway-delay-jan-2014-april-2017*.csv"

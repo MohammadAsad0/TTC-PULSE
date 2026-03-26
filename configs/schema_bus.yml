@@ -1,5 +1,5 @@
 mode: bus
-source_root: datasets/02_bus_delay/csv
+source_root: data/bus
 include_patterns:
   - "ttc-bus-delay-data-*.csv"
   - "TTC Bus Delay Data since 2025.csv"

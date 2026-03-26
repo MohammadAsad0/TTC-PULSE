@@ -49,9 +49,15 @@ def _ensure_registry_table(connection: Any, table_name: str) -> None:
     )
 
 
-def _resolve_source_root(config: dict[str, Any], workspace_root: Path) -> Path:
+def _resolve_source_root(config: dict[str, Any], workspace_root: Path, project_root: Path) -> Path:
     configured = Path(str(config.get("source_root", "datasets/02_bus_delay/csv")))
-    return configured if configured.is_absolute() else (workspace_root / configured)
+    if configured.is_absolute():
+        return configured
+
+    project_candidate = (project_root / configured).resolve()
+    if project_candidate.exists():
+        return project_candidate
+    return (workspace_root / configured).resolve()
 
 
 def discover_bus_files(config_path: Path | None = None) -> dict[str, Any]:
@@ -59,7 +65,7 @@ def discover_bus_files(config_path: Path | None = None) -> dict[str, Any]:
     paths = resolve_project_paths()
     schema_path = config_path or (paths.configs_root / "schema_bus.yml")
     config = load_yaml(schema_path)
-    source_root = _resolve_source_root(config, paths.workspace_root)
+    source_root = _resolve_source_root(config, paths.workspace_root, paths.project_root)
 
     files = discover_files(
         source_root=source_root,

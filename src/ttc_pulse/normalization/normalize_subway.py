@@ -13,13 +13,51 @@ from ttc_pulse.utils.project_setup import resolve_project_paths, sql_literal
 OUTPUT_FILENAME = "silver_subway_events.parquet"
 
 
-def _normalize_subway_sql() -> str:
-    return """
+def _normalize_subway_sql(code_reference_path: Path | None = None) -> str:
+    code_reference_cte = """
+    subway_code_reference AS (
+        SELECT DISTINCT
+            UPPER(TRIM(code_raw)) AS incident_code_raw,
+            NULLIF(TRIM(code_description), '') AS incident_description
+        FROM (
+            SELECT column2 AS code_raw, column3 AS code_description
+            FROM read_csv_auto(
+                {code_reference_path},
+                all_varchar = TRUE,
+                header = FALSE,
+                ignore_errors = TRUE
+            )
+            UNION ALL
+            SELECT column6 AS code_raw, column7 AS code_description
+            FROM read_csv_auto(
+                {code_reference_path},
+                all_varchar = TRUE,
+                header = FALSE,
+                ignore_errors = TRUE
+            )
+        ) raw_codes
+        WHERE code_raw IS NOT NULL
+            AND TRIM(code_raw) <> ''
+            AND UPPER(TRIM(code_raw)) NOT IN ('SUB RMENU CODE', 'SRT RMENU CODE')
+    ),
+    """.format(
+        code_reference_path=sql_literal(code_reference_path.as_posix())
+    )
+    if code_reference_path is None or not code_reference_path.exists():
+        code_reference_cte = """
+    subway_code_reference AS (
+        SELECT
+            CAST(NULL AS VARCHAR) AS incident_code_raw,
+            CAST(NULL AS VARCHAR) AS incident_description
+        WHERE FALSE
+    ),
+    """
+
+    return f"""
     WITH gtfs_line_routes AS (
         SELECT route_short_name, route_id
         FROM bronze_gtfs_routes
         WHERE route_type = '1'
-            AND route_short_name IN ('1', '2', '4')
     ),
     subway_stop_names AS (
         SELECT DISTINCT s.stop_name
@@ -31,8 +69,8 @@ def _normalize_subway_sql() -> str:
         INNER JOIN bronze_gtfs_routes r
             ON r.route_id = t.route_id
         WHERE r.route_type = '1'
-            AND r.route_short_name IN ('1', '2', '4')
     ),
+    {code_reference_cte}
     gtfs_station_tokens AS (
         SELECT DISTINCT
             NULLIF(
@@ -93,6 +131,13 @@ def _normalize_subway_sql() -> str:
             UPPER(line_raw) AS line_upper
         FROM base
     ),
+    filtered AS (
+        SELECT *
+        FROM parsed
+        WHERE service_date IS NOT NULL
+            AND line_raw IS NOT NULL
+            AND station_raw IS NOT NULL
+    ),
     line_norm AS (
         SELECT
             *,
@@ -120,7 +165,7 @@ def _normalize_subway_sql() -> str:
                     OR REGEXP_MATCHES(line_upper, '(^|\\W)1(\\W|$)') THEN '1'
                 ELSE NULL
             END AS line_code_norm
-        FROM parsed
+        FROM filtered
     ),
     station_norm AS (
         SELECT
@@ -167,12 +212,15 @@ def _normalize_subway_sql() -> str:
         SELECT
             d.*,
             r.route_id AS route_id_gtfs,
-            gs.station_canonical_gtfs
+            gs.station_canonical_gtfs,
+            scr.incident_description
         FROM direction_ready d
         LEFT JOIN gtfs_line_routes r
             ON r.route_short_name = d.line_code_norm
         LEFT JOIN gtfs_station_tokens gs
             ON gs.station_canonical_gtfs = d.station_canonical
+        LEFT JOIN subway_code_reference scr
+            ON UPPER(COALESCE(d.code_raw, '')) = scr.incident_code_raw
     ),
     final AS (
         SELECT
@@ -194,9 +242,9 @@ def _normalize_subway_sql() -> str:
             station_raw AS station_text_raw,
             station_canonical,
             station_raw AS location_text_raw,
-            NULL::VARCHAR AS incident_text_raw,
+            incident_description AS incident_text_raw,
             code_raw AS incident_code_raw,
-            code_raw AS incident_category,
+            COALESCE(incident_description, code_raw) AS incident_category,
             min_delay,
             min_gap,
             bound_raw AS direction_raw,
@@ -264,6 +312,7 @@ def _normalize_subway_sql() -> str:
         ingested_at,
         row_hash
     FROM final
+    WHERE route_id_gtfs IS NOT NULL
     """
 
 
@@ -275,12 +324,16 @@ def run_normalize_subway(
     paths = resolve_project_paths()
     resolved_db_path = (db_path or paths.db_path).resolve()
     resolved_output = (output_path or (paths.project_root / "silver" / OUTPUT_FILENAME)).resolve()
+    code_reference_path = (
+        paths.project_root / "data" / "subway" / "ttc-subway-delay-codes__01_Sheet_1.csv"
+    ).resolve()
     resolved_output.parent.mkdir(parents=True, exist_ok=True)
 
     connection = duckdb.connect(str(resolved_db_path), read_only=True)
     connection.execute("PRAGMA disable_progress_bar")
     connection.execute(
-        f"CREATE OR REPLACE TEMP TABLE tmp_silver_subway_events AS {_normalize_subway_sql()}"
+        "CREATE OR REPLACE TEMP TABLE tmp_silver_subway_events AS "
+        f"{_normalize_subway_sql(code_reference_path=code_reference_path)}"
     )
 
     row_count = connection.execute("SELECT COUNT(*) FROM tmp_silver_subway_events").fetchone()[0]

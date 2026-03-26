@@ -115,7 +115,7 @@ def _build_bronze_from_csv_files(
         CREATE OR REPLACE TABLE {quote_identifier(table_name)} AS
         SELECT
             {data_column_sql},
-            filename AS source_file,
+            REGEXP_EXTRACT(filename, '([^/\\\\]+)$', 1) AS source_file,
             NULL::VARCHAR AS source_sheet,
             row_number() OVER (PARTITION BY filename) AS source_row_id,
             CAST({sql_literal(ingested_at)} AS TIMESTAMP) AS ingested_at,
@@ -163,7 +163,7 @@ def _build_bronze_from_single_csv(
         CREATE OR REPLACE TABLE {quote_identifier(table_name)} AS
         SELECT
             {data_column_sql},
-            {sql_literal(source_path.resolve().as_posix())} AS source_file,
+            {sql_literal(source_path.name)} AS source_file,
             NULL::VARCHAR AS source_sheet,
             row_number() OVER () AS source_row_id,
             CAST({sql_literal(ingested_at)} AS TIMESTAMP) AS ingested_at,

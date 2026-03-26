@@ -15,16 +15,16 @@ from ttc_pulse.utils.project_setup import (
 )
 
 GTFS_REQUIRED_FILE_CANDIDATES = {
-    "routes": ["routes.txt", "csv/routes.csv"],
-    "trips": ["trips.txt", "csv/trips.csv"],
-    "stop_times": ["stop_times.txt", "csv/stop_times.csv"],
-    "stops": ["stops.txt", "csv/stops.csv"],
-    "calendar": ["calendar.txt", "csv/calendar.csv"],
-    "calendar_dates": ["calendar_dates.txt", "csv/calendar_dates.csv"],
+    "routes": ["routes.txt", "routes.csv", "csv/routes.csv"],
+    "trips": ["trips.txt", "trips.csv", "csv/trips.csv"],
+    "stop_times": ["stop_times.txt", "stop_times.csv", "csv/stop_times.csv"],
+    "stops": ["stops.txt", "stops.csv", "csv/stops.csv"],
+    "calendar": ["calendar.txt", "calendar.csv", "csv/calendar.csv"],
+    "calendar_dates": ["calendar_dates.txt", "calendar_dates.csv", "csv/calendar_dates.csv"],
 }
 
 GTFS_OPTIONAL_FILE_CANDIDATES = {
-    "shapes": ["shapes.txt", "csv/shapes.csv"],
+    "shapes": ["shapes.txt", "shapes.csv", "csv/shapes.csv"],
 }
 
 REGISTRY_COLUMNS = [
@@ -71,9 +71,11 @@ def _pick_first_existing(base_root: Path, relative_candidates: list[str]) -> Pat
 
 
 def discover_gtfs_files() -> dict[str, Any]:
-    """Resolve required and optional GTFS files from datasets/01_gtfs_merged."""
+    """Resolve required and optional GTFS files from data/gtfs (legacy fallback supported)."""
     paths = resolve_project_paths()
-    source_root = paths.datasets_root / "01_gtfs_merged"
+    source_root = paths.data_root / "gtfs"
+    if not source_root.exists():
+        source_root = paths.datasets_root / "01_gtfs_merged"
 
     required: dict[str, Path] = {}
     missing_required: list[str] = []

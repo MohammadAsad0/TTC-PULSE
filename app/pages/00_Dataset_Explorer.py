@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
@@ -22,6 +22,7 @@ _bootstrap_src_path()
 
 from ttc_pulse.dashboard.loaders import get_dataset_coverage, load_dataset_rows, resolve_dataset_path
 from ttc_pulse.dashboard.storytelling import is_presentation_mode, page_story_header, story_mode_selector
+from ttc_pulse.pipeline.load_dataset import run_load_dataset
 
 MODE_COLUMNS: dict[str, list[str]] = {
     "bus": [
@@ -97,7 +98,30 @@ def _load_rows(mode: str, start_date: str, end_date: str, row_limit: int):
     return load_dataset_rows(mode=mode, start_date=start_date, end_date=end_date, limit=row_limit)
 
 
-st.title("Dataset Explorer")
+header_left, header_right = st.columns([4, 1], vertical_alignment="bottom")
+with header_left:
+    st.title("Dataset Explorer")
+with header_right:
+    if st.button("Load Dataset", type="primary", use_container_width=True):
+        with st.spinner("Loading raw CSV files into DuckDB and Parquet..."):
+            try:
+                load_result = run_load_dataset()
+            except Exception as exc:  # pragma: no cover
+                st.error(f"Dataset load failed: {type(exc).__name__}: {exc}")
+            else:
+                st.success("Dataset load completed.")
+                st.cache_data.clear()
+                highlights = load_result.get("highlights", {})
+                st.caption(
+                    " | ".join(
+                        [
+                            f"Bus: {highlights.get('silver_bus_rows', 0):,}",
+                            f"Subway: {highlights.get('silver_subway_rows', 0):,}",
+                            f"Fact: {highlights.get('fact_delay_events_norm_rows', 0):,}",
+                        ]
+                    )
+                )
+
 st.caption("Inspect the row-level TTC delay dataset by mode and service-date window.")
 
 presentation = is_presentation_mode(story_mode_selector(sidebar=True, key="story_mode"))

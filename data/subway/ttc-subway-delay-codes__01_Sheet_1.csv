@@ -1,0 +1,131 @@
+Unnamed: 0,Unnamed: 1,Unnamed: 2,Unnamed: 3,Unnamed: 4,Unnamed: 5,Unnamed: 6,Unnamed: 7
+,,SUB RMENU CODE,CODE DESCRIPTION,,,SRT RMENU CODE,CODE DESCRIPTION
+,1.0,EUAC,Air Conditioning,,1.0,ERAC,Air Conditioning
+,2.0,EUAL,Alternating Current,,2.0,ERBO,Body
+,3.0,EUATC,ATC RC&S Equipment,,3.0,ERCD,Consequential Delay (2nd Delay Same Fault)
+,4.0,EUBK,Brakes,,4.0,ERCO,Couplers
+,5.0,EUBO,Body,,5.0,ERDB,Disc Brakes
+,6.0,EUCA,Compressed Air,,6.0,ERDO,Door Problems - Faulty Equipment
+,7.0,EUCD,Consequential Delay (2nd Delay Same Fault),,7.0,ERHV,High Voltage
+,8.0,EUCH,Chopper Control,,8.0,ERLT,Lighting System
+,9.0,EUCO,Couplers,,9.0,ERLV,Low Voltage
+,10.0,EUDO,Door Problems - Faulty Equipment,,10.0,ERME,RC&S Maintenance Error - (Human)
+,11.0,EUECD,ECD / Line Mechanic Related Prob.,,11.0,ERNEA,No Equipment Available
+,12.0,EUHV,High Voltage,,12.0,ERNT,Equipment - No Trouble Found
+,13.0,EULT,Lighting System,,13.0,ERO,RC&S Other
+,14.0,EULV,Low Voltage,,14.0,ERPR,Propulsion System
+,15.0,EUME,RC&S Maintenance Error - (Human),,15.0,ERRA,Radio
+,16.0,EUNEA,No Equipment Available,,16.0,ERTB,Track Brakes
+,17.0,EUNT,Equipment - No Trouble Found,,17.0,ERTC,Train Control - VOBC
+,18.0,EUO,RC&S Other,,18.0,ERTL,Trainline System
+,19.0,EUOE,Rail Cars & Shops Opr. Error,,19.0,ERTR,Trucks
+,20.0,EUOPO,OPTO RC&S Non-Train Door Monitoring,,20.0,ERVE,Vehicle
+,21.0,EUPI,Propulsion System,,21.0,ERWA,Warning Alarm Systems
+,22.0,EUSC,Speed Control Equipment  ,,22.0,ERWS,Wind Shield
+,23.0,EUTL,Trainline System,,23.0,MRCL,Divisional Clerk Related
+,24.0,EUTM,Traction Motors,,24.0,MRD,Door Problems - Passenger Related
+,25.0,EUTR,Trucks,,25.0,MRDD,Door Problems - Debris Related
+,26.0,EUTRD,TR Cab Doors,,26.0,MREC,Misc. Engineering & Construction Related Problems
+,27.0,EUVA,Warning Alarm Systems,,27.0,MRESA,No Operator Immediately Available
+,28.0,EUVE,Work Vehicle,,28.0,MRFS,Fire/Smoke Plan B - Source External to TTC
+,29.0,EUYRD,Yard/Carhouse Related Problems,,29.0,MRIE,Injured Employee
+,30.0,MUATC,ATC Project,,30.0,MRLD,Labour Dispute - Subway
+,31.0,MUCL,Divisional Clerk Related,,31.0,MRNOA,No Operator Immediately Available - Not E.S.A. Related 
+,32.0,MUD,Door Problems - Passenger Related,,32.0,MRO,Miscellaneous Other
+,33.0,MUDD,Door Problems - Debris Related,,33.0,MRPAA,Passenger Assistance Alarm Activated - No Trouble Found
+,34.0,MUEC,Misc. Engineering & Construction Related Problems,,34.0,MRPLA,Fire/Smoke Plan A
+,35.0,MUESA,No Operator Immediately Available,,35.0,MRPLB,Fire/Smoke Plan B
+,36.0,MUFM,Force Majeure,,36.0,MRPLC,Fire/Smoke Plan C
+,37.0,MUFS,Fire/Smoke Plan B - Source External to TTC,,37.0,MRPR1,Priority One - Train in Contact With Person
+,38.0,MUGD,Miscellaneous General Delays,,38.0,MRSAN,Unsanitary Vehicle
+,39.0,MUI,Injured or ill Customer (On Train) - Transported,,39.0,MRSTM,Scheduled Track Maintenance
+,40.0,MUIE,Injured Employee,,40.0,MRTO,Timeout
+,41.0,MUIR,Injured or ill Customer (On Train) - Medical Aid Refused,,41.0,MRUI,Injured or ill Customer (On Train) - Transported
+,42.0,MUIRS,Injured or ill Customer (In Station) - Medical Aid Refused,,42.0,MRUIR,Injured or ill Customer (On Train) - Medical Aid Refused
+,43.0,MUIS,Injured or ill Customer (In Station) - Transported,,43.0,MRWEA,Weather Reports / Related Delays
+,44.0,MULD,Labour Dispute - Subway,,44.0,PREL,Escalator/Elevator Incident
+,45.0,MUNOA,No Operator Immediately Available - Not E.S.A. Related ,,45.0,PRO,Other
+,46.0,MUO,Miscellaneous Other,,46.0,PRS,VCC/RCIU/CCR
+,47.0,MUODC,Overhead Door Contact,,47.0,PRSA,Axle Counter Related
+,48.0,MUPAA,Passenger Assistance Alarm Activated - No Trouble Found,,48.0,PRSL,Loop Related Failures
+,49.0,MUPLA,Fire/Smoke Plan A,,49.0,PRSO,Signals Other
+,50.0,MUPLB,Fire/Smoke Plan B - Source TTC,,50.0,PRSP,Signals Power Supply Related
+,51.0,MUPLC,Fire/Smoke Plan C,,51.0,PRST,Station Stairway Incident 
+,52.0,MUPR1,Priority One - Train in Contact With Person,,52.0,PRSW,Switch Related
+,53.0,MUSAN,Unsanitary Vehicle,,53.0,PRTST,Signals - Train Stops
+,54.0,MUSC,Miscellaneous Speed Control,,54.0,PRW,Rail Defect/Fastenings/Power Rail
+,55.0,MUTD,Training Department Related Delays,,55.0,SRAE,Assault / Employee Involved
+,56.0,MUTO,Misc. Transportation Other - Employee Non-Chargeable,,56.0,SRAP,Assault / Patron Involved
+,57.0,MUWEA,Weather Reports / Related Delays,,57.0,SRBT,Bomb Threat
+,58.0,MUWR,Work Refusal,,58.0,SRCOL,Collector Booth Alarm Activated
+,59.0,PUATC,ATC Signals Other,,59.0,SRDP,Disorderly Patron
+,60.0,PUCBI,Central Logic Controller Failure,,60.0,SREAS,Emergency Alarm Station Activation
+,61.0,PUCSC,Signal Control Problem - Signals,,61.0,SRO,Passenger Other
+,62.0,PUCSS,Central Office Signalling System,,62.0,SRSA,Sexual Assault
+,63.0,PUDCS,Data Communications System Failure,,63.0,SRSP,Suspicious Package
+,64.0,PUMEL,Escalator/Elevator Incident,,64.0,SRUT,Unauthorized at Track Level
+,65.0,PUMO,Station Other,,65.0,TRDOE,Doors Open in Error
+,66.0,PUMST,Station Stairway Incident ,,66.0,TRNIP,Operator Not In Position
+,67.0,PUOPO,OPTO (COMMS) Train Door Monitoring,,67.0,TRNOA,No Operator Immediately Available 
+,68.0,PUSAC,Signals Axle Counter Block Failure,,68.0,TRO,Transportation Department - Other
+,69.0,PUSBE,Beacon Failure,,69.0,TRSET,Train Controls Improperly Shut Down
+,70.0,PUSCA,SCADA Related Problems ,,70.0,TRST,Storm Trains
+,71.0,PUSCR,Subway Car Radio Fault ,,71.0,TRTC,Transit Control Related Problems
+,72.0,PUSEA,EAS Failure                               ,,,,
+,73.0,PUSI,Signals or Related Components Failure ,,,,
+,74.0,PUSIO,Smart IO Failure,,,,
+,75.0,PUSIS,Signals Track Weather Related,,,,
+,76.0,PUSLC,Signals Line Countroller Failure,,,,
+,77.0,PUSNT,Signal Problem - No Trouble,,,,
+,78.0,PUSO,S/E/C Department Other,,,,
+,79.0,PUSRA,Subway Radio System Fault ,,,,
+,80.0,PUSSW,Track Switch Failure - Signal Related Problem,,,,
+,81.0,PUSTC,Signals - Track Circuit Problems,,,,
+,82.0,PUSTP,Traction Power or Related Components Failure,,,,
+,83.0,PUSTS,Signals - Train Stops,,,,
+,84.0,PUSWZ,Work Zone Problems - Signals,,,,
+,85.0,PUSZC,Signals Zone Countroller Failure,,,,
+,86.0,PUTCD,T & S Contractor Problems,,,,
+,87.0,PUTD,Track Level Debris - Controllable,,,,
+,88.0,PUTDN ,Debris At Track Level - Uncontrollable,,,,
+,89.0,PUTIJ,Insulated Joint Related Problem,,,,
+,90.0,PUTIS,Ice / Snow Related Problems,,,,
+,91.0,PUTNT,T&S Related Problem - NTF,,,,
+,92.0,PUTO,T&S Other,,,,
+,93.0,PUTOE,T & S Operator Related Problems,,,,
+,94.0,PUTR,Rail Related Problem,,,,
+,95.0,PUTS,Structure Related Problem,,,,
+,96.0,PUTSC,Signal Control Problem - Track,,,,
+,97.0,PUTSM,Track Switch Failure - Track Related Problem,,,,
+,98.0,PUTTC,Track Circuit Problems - Re: Defective Bolts/Bonding,,,,
+,99.0,PUTTP,Traction Power Rail Related,,,,
+,100.0,PUTWZ,Work Zone Problems - Track,,,,
+,101.0,SUAE,Assault / Employee Involved,,,,
+,102.0,SUAP,Assault / Patron Involved,,,,
+,103.0,SUBT,Bomb Threat,,,,
+,104.0,SUCOL,Collector Booth Alarm Activated,,,,
+,105.0,SUDP,Disorderly Patron,,,,
+,106.0,SUEAS,Emergency Alarm Station Activation,,,,
+,107.0,SUG,Graffiti / Scratchiti,,,,
+,108.0,SUO,Passenger Other,,,,
+,109.0,SUPOL,Held By Polce - Non-TTC Related,,,,
+,110.0,SUROB,Robbery,,,,
+,111.0,SUSA,Sexual Assault,,,,
+,112.0,SUSP,Suspicious Package,,,,
+,113.0,SUUT,Unauthorized at Track Level,,,,
+,114.0,TUATC,ATC Operator Related,,,,
+,115.0,TUCC,Transit Control Related Problems,,,,
+,116.0,TUDOE,Doors Open in Error,,,,
+,117.0,TUKEY,Two Drum Switch Keys Activated,,,,
+,118.0,TUML,Mainline Storage,,,,
+,119.0,TUMVS,Operator Violated Signal,,,,
+,120.0,TUNIP,Operator Not In Position,,,,
+,121.0,TUNOA,No Operator Immediately Available ,,,,
+,122.0,TUO,Transportation Department - Other,,,,
+,123.0,TUOPO,OPTO Operator Related,,,,
+,124.0,TUOS,Operator Overshot Platform,,,,
+,125.0,TUS,Crew Unable to Maintain Schedule,,,,
+,126.0,TUSC,Operator Overspeeding,,,,
+,127.0,TUSET,Train Controls Improperly Shut Down,,,,
+,128.0,TUST,Storm Trains,,,,
+,129.0,TUSUP,Supervisory Error,,,,
