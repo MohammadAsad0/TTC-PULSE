@@ -23,6 +23,11 @@ GOLD_TABLE_FILES: dict[str, str] = {
     "gold_spatial_hotspot": "gold/gold_spatial_hotspot.parquet",
 }
 
+DATASET_FILES: dict[str, str] = {
+    "bus": "silver/silver_bus_events.parquet",
+    "subway": "silver/silver_subway_events.parquet",
+}
+
 
 def _debug_errors_enabled() -> bool:
     value = os.getenv("TTC_PULSE_DEBUG_ERRORS")
@@ -267,14 +272,125 @@ def get_gold_table_status_frame(
     return pd.DataFrame(records)
 
 
+def resolve_dataset_path(mode: str, project_root: Path | None = None) -> Path:
+    """Resolve the parquet path for a row-level dataset explorer mode."""
+    relative_path = DATASET_FILES.get(mode)
+    if relative_path is None:
+        raise ValueError(f"Unsupported dataset mode: {mode}")
+    root = project_root or resolve_project_root()
+    return (root / relative_path).resolve()
+
+
+def get_dataset_coverage(mode: str, project_root: Path | None = None) -> QueryResult:
+    """Return min/max service date coverage for a dataset explorer mode."""
+    dataset_path = resolve_dataset_path(mode=mode, project_root=project_root)
+    if not dataset_path.exists():
+        return QueryResult(
+            table_name=mode,
+            status="missing",
+            source="missing",
+            row_count=0,
+            message=f"Dataset parquet not found: {dataset_path.as_posix()}",
+            frame=pd.DataFrame(),
+        )
+
+    connection = duckdb.connect(":memory:")
+    try:
+        frame = connection.execute(
+            f"""
+            SELECT
+                MIN(service_date) AS min_service_date,
+                MAX(service_date) AS max_service_date,
+                COUNT(*) AS row_count
+            FROM read_parquet({_sql_literal(dataset_path.as_posix())})
+            """
+        ).df()
+        return QueryResult(
+            table_name=mode,
+            status="ok",
+            source="parquet",
+            row_count=int(frame["row_count"].iloc[0]) if not frame.empty else 0,
+            message=f"Loaded dataset coverage from parquet: {dataset_path.name}",
+            frame=frame,
+        )
+    except Exception as exc:
+        return QueryResult(
+            table_name=mode,
+            status="error",
+            source="error",
+            row_count=0,
+            message=_safe_error_message("Dataset coverage query failed", mode, exc),
+            frame=pd.DataFrame(),
+        )
+    finally:
+        connection.close()
+
+
+def load_dataset_rows(
+    mode: str,
+    start_date: str,
+    end_date: str,
+    limit: int = 1000,
+    project_root: Path | None = None,
+) -> QueryResult:
+    """Load row-level dataset records for the selected mode and date window."""
+    dataset_path = resolve_dataset_path(mode=mode, project_root=project_root)
+    if not dataset_path.exists():
+        return QueryResult(
+            table_name=mode,
+            status="missing",
+            source="missing",
+            row_count=0,
+            message=f"Dataset parquet not found: {dataset_path.as_posix()}",
+            frame=pd.DataFrame(),
+        )
+
+    connection = duckdb.connect(":memory:")
+    try:
+        frame = connection.execute(
+            f"""
+            SELECT *
+            FROM read_parquet({_sql_literal(dataset_path.as_posix())})
+            WHERE service_date BETWEEN ? AND ?
+            ORDER BY service_date ASC, event_ts ASC NULLS LAST, source_row_id ASC NULLS LAST
+            LIMIT ?
+            """,
+            [start_date, end_date, int(limit)],
+        ).df()
+        status = "ok" if not frame.empty else "empty"
+        return QueryResult(
+            table_name=mode,
+            status=status,
+            source="parquet",
+            row_count=int(len(frame)),
+            message=f"Loaded dataset rows from parquet: {dataset_path.name}",
+            frame=frame,
+        )
+    except Exception as exc:
+        return QueryResult(
+            table_name=mode,
+            status="error",
+            source="error",
+            row_count=0,
+            message=_safe_error_message("Dataset row query failed", mode, exc),
+            frame=pd.DataFrame(),
+        )
+    finally:
+        connection.close()
+
+
 __all__ = [
+    "DATASET_FILES",
     "GOLD_TABLE_FILES",
     "QueryResult",
     "TableSnapshot",
+    "get_dataset_coverage",
     "get_gold_table_status_frame",
     "get_table_snapshot",
+    "load_dataset_rows",
     "open_connection",
     "query_table",
+    "resolve_dataset_path",
     "resolve_duckdb_path",
     "resolve_project_root",
 ]

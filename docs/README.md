@@ -96,6 +96,10 @@ powershell -ExecutionPolicy Bypass -File .\scripts\alerts\install_windows_schedu
 PYTHONPATH=src ../.venv-ttc/bin/python -m streamlit run app/streamlit_app.py
 ```
 
+Dashboard note:
+- The app now includes a Dataset Explorer page for row-level bus/subway inspection by service-date range.
+- Dataset read-path details are documented in `docs/dataset_reading.md`.
+
 ## Verification Checklist
 - Gold row counts: `outputs/final_metrics_summary.md`
 - Step logs: `logs/ingestion_log.csv`, `logs/step2_registration_log.csv`, `logs/step3_gold_build_log.csv`
