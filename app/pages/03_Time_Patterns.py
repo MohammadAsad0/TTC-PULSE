@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
@@ -361,6 +361,7 @@ monthly_chart = (
         tooltip=["month_start:T", "series_label:N", "frequency:Q", "severity_p90:Q", "regularity_p90:Q", "cause_mix_score:Q", "composite_score:Q"],
     )
     .properties(title="Monthly Supporting Trend", height=300)
+    .interactive()
 )
 st.altair_chart(monthly_chart, use_container_width=True)
 

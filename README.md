@@ -110,7 +110,9 @@ streamlit run app/streamlit_app.py
 If the Gold parquet outputs are already present in the repo or your local copy, you can often skip directly to:
 
 ```bash
+
 streamlit run app/streamlit_app.py
+
 ```
 
 ## Step-by-Step Execution

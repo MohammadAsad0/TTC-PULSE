@@ -56,13 +56,6 @@ def _normalize_bus_sql() -> str:
             ) AS service_date
         FROM base
     ),
-    filtered AS (
-        SELECT *
-        FROM parsed_dates
-        WHERE COALESCE(route_raw, line_raw) IS NOT NULL
-            AND service_date IS NOT NULL
-            AND NOT regexp_matches(TRIM(COALESCE(route_raw, line_raw)), '^0+(?:\\.0+)?$')
-    ),
     route_tokens AS (
         SELECT
             *,
@@ -81,7 +74,7 @@ def _normalize_bus_sql() -> str:
             ) AS route_line_token,
             NULLIF(REGEXP_EXTRACT(UPPER(line_raw), 'LINE\\s*([0-9]{1,2})', 1), '') AS line_line_token,
             COALESCE(route_raw, line_raw) AS route_label_raw
-        FROM filtered
+        FROM parsed_dates
     ),
     route_resolved AS (
         SELECT
@@ -211,7 +204,6 @@ def _normalize_bus_sql() -> str:
         ingested_at,
         row_hash
     FROM final
-    WHERE route_id_gtfs IS NOT NULL
     """
 
 

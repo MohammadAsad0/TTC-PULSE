@@ -1,9 +1,9 @@
 table,row_count,status,timestamp
-gold_delay_events_core,933327,built,2026-03-26T17:23:41Z
-gold_linkage_quality,467,built,2026-03-26T17:23:41Z
-gold_route_time_metrics,755793,built,2026-03-26T17:23:41Z
-gold_station_time_metrics,187162,built,2026-03-26T17:23:41Z
-gold_time_reliability,336,built,2026-03-26T17:23:41Z
-gold_top_offender_ranking,259,built,2026-03-26T17:23:41Z
-gold_alert_validation,3252,built,2026-03-26T17:23:41Z
-gold_spatial_hotspot,0,built_with_caveats,2026-03-26T17:23:41Z
+gold_delay_events_core,1004681,built,2026-03-26T17:29:43Z
+gold_linkage_quality,968,built,2026-03-26T17:29:43Z
+gold_route_time_metrics,762679,built,2026-03-26T17:29:43Z
+gold_station_time_metrics,197434,built,2026-03-26T17:29:43Z
+gold_time_reliability,336,built,2026-03-26T17:29:43Z
+gold_top_offender_ranking,264,built,2026-03-26T17:29:43Z
+gold_alert_validation,3252,built,2026-03-26T17:29:43Z
+gold_spatial_hotspot,69,built,2026-03-26T17:29:43Z

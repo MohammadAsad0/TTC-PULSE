@@ -131,13 +131,6 @@ def _normalize_subway_sql(code_reference_path: Path | None = None) -> str:
             UPPER(line_raw) AS line_upper
         FROM base
     ),
-    filtered AS (
-        SELECT *
-        FROM parsed
-        WHERE service_date IS NOT NULL
-            AND line_raw IS NOT NULL
-            AND station_raw IS NOT NULL
-    ),
     line_norm AS (
         SELECT
             *,
@@ -165,7 +158,7 @@ def _normalize_subway_sql(code_reference_path: Path | None = None) -> str:
                     OR REGEXP_MATCHES(line_upper, '(^|\\W)1(\\W|$)') THEN '1'
                 ELSE NULL
             END AS line_code_norm
-        FROM filtered
+        FROM parsed
     ),
     station_norm AS (
         SELECT
@@ -312,7 +305,6 @@ def _normalize_subway_sql(code_reference_path: Path | None = None) -> str:
         ingested_at,
         row_hash
     FROM final
-    WHERE route_id_gtfs IS NOT NULL
     """
 
 

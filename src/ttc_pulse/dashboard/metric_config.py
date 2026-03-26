@@ -8,10 +8,10 @@ from typing import Sequence
 import pandas as pd
 
 METRIC_OPTIONS: list[str] = [
-    "Composite Score",
     "Frequency",
-    "Severity",
     "Regularity",
+    "Severity",
+    "Composite Score",
     "Cause Mix",
 ]
 

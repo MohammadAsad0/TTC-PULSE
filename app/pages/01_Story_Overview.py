@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
@@ -269,6 +269,7 @@ chart = (
         title=f"{selected_mode.title()} Reliability Pattern Over Time",
         height=340,
     )
+    .interactive()
 )
 st.altair_chart(chart, use_container_width=True)
 
@@ -298,3 +299,4 @@ if presentation:
     st.caption("Presentation mode keeps only summary evidence. Switch to Exploration for full tables and controls.")
 
 next_question_hint("Which routes/stations repeatedly dominate risk? Open: Recurring Hotspots.")
+
