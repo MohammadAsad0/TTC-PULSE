@@ -23,6 +23,7 @@ _bootstrap_src_path()
 from ttc_pulse.dashboard.loaders import get_dataset_coverage, load_dataset_rows, resolve_dataset_path
 from ttc_pulse.dashboard.storytelling import is_presentation_mode, page_story_header, story_mode_selector
 from ttc_pulse.pipeline.load_dataset import run_load_dataset
+from ttc_pulse.utils.project_setup import resolve_project_paths
 
 MODE_COLUMNS: dict[str, list[str]] = {
     "bus": [
@@ -102,7 +103,15 @@ header_left, header_right = st.columns([4, 1], vertical_alignment="bottom")
 with header_left:
     st.title("Dataset Explorer")
 with header_right:
-    if st.button("Load Dataset", type="primary", use_container_width=True):
+    paths = resolve_project_paths()
+    raw_roots = [
+        paths.project_root / "data" / "bus",
+        paths.project_root / "data" / "subway",
+        paths.project_root / "data" / "gtfs",
+    ]
+    raw_ready = all(root.exists() for root in raw_roots)
+
+    if st.button("Load Dataset", type="primary", use_container_width=True, disabled=not raw_ready):
         with st.spinner("Loading raw CSV files into DuckDB and Parquet..."):
             try:
                 load_result = run_load_dataset()
@@ -121,6 +130,8 @@ with header_right:
                         ]
                     )
                 )
+    if not raw_ready:
+        st.caption("Raw CSV folders not found. Running from existing DuckDB/Parquet artifacts.")
 
 st.caption("Inspect the row-level TTC delay dataset by mode and service-date window.")
 
@@ -177,6 +188,11 @@ frame = rows_result.frame.copy()
 display_columns = [column for column in MODE_COLUMNS[selected_mode] if column in frame.columns]
 if not display_columns:
     display_columns = frame.columns.tolist()
+
+filtered_rows = rows_result.total_row_count if rows_result.total_row_count is not None else len(frame)
+st.caption(
+    f"Filtered rows in window: {filtered_rows:,}. Showing first {int(row_limit):,} rows."
+)
 
 metric_a, metric_b, metric_c = st.columns(3)
 metric_a.metric("Rows Displayed", f"{len(frame):,}")

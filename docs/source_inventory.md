@@ -1,7 +1,7 @@
 # Source Inventory (Step 1 Ingestion/Foundation)
 
-- Run ID: `20260326T170553Z`
-- Ingested at (UTC): `2026-03-26T17:05:53Z`
+- Run ID: `20260326T172239Z`
+- Ingested at (UTC): `2026-03-26T17:22:39Z`
 
 ## Source Roots Used
 

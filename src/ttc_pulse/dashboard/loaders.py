@@ -52,6 +52,7 @@ class QueryResult:
     row_count: int
     message: str
     frame: pd.DataFrame
+    total_row_count: int | None = None
 
 
 @dataclass(frozen=True)
@@ -347,6 +348,16 @@ def load_dataset_rows(
 
     connection = duckdb.connect(":memory:")
     try:
+        total_row_count = int(
+            connection.execute(
+                f"""
+                SELECT COUNT(*)
+                FROM read_parquet({_sql_literal(dataset_path.as_posix())})
+                WHERE service_date BETWEEN ? AND ?
+                """,
+                [start_date, end_date],
+            ).fetchone()[0]
+        )
         frame = connection.execute(
             f"""
             SELECT *
@@ -365,6 +376,7 @@ def load_dataset_rows(
             row_count=int(len(frame)),
             message=f"Loaded dataset rows from parquet: {dataset_path.name}",
             frame=frame,
+            total_row_count=total_row_count,
         )
     except Exception as exc:
         return QueryResult(
