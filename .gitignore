@@ -24,3 +24,8 @@ EOF
 
 # Large data files
 *.duckdb
+
+
+data/
+
+
