@@ -4,6 +4,7 @@ import pandas as pd
 
 from ttc_pulse.cleaning import load_and_clean_all
 from ttc_pulse.io import list_csv_files, load_csv_files
+from ttc_pulse.materialization import load_datasets_for_app, materialize_clean_datasets
 from ttc_pulse.paths import BUS_DIR, GTFS_DIR, SUBWAY_DIR
 
 
@@ -21,6 +22,14 @@ def load_clean_datasets() -> dict[str, object]:
         "gtfs_files": len(list_csv_files(GTFS_DIR)),
     }
     return cleaned
+
+
+def load_fast_datasets(force_refresh: bool = False) -> dict[str, object]:
+    return load_datasets_for_app(force_refresh=force_refresh)
+
+
+def refresh_fast_artifacts() -> dict[str, object]:
+    return materialize_clean_datasets(force=True)
 
 
 def _coverage_row(label: str, frame: pd.DataFrame) -> dict[str, object]:

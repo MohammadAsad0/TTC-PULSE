@@ -15,17 +15,32 @@ def bootstrap_src() -> None:
 
 bootstrap_src()
 
-from ttc_pulse.service import build_overview, load_clean_datasets
+from ttc_pulse.service import build_overview, load_fast_datasets, refresh_fast_artifacts
 
 
 @st.cache_data(show_spinner=False)
 def get_data() -> dict[str, object]:
-    return load_clean_datasets()
+    return load_fast_datasets()
 
 
 @st.cache_data(show_spinner=False)
 def get_overview(bus_rows: pd.DataFrame, subway_rows: pd.DataFrame) -> dict[str, pd.DataFrame]:
     return build_overview(bus_rows, subway_rows)
+
+
+def render_cache_controls() -> None:
+    col_action, col_text = st.columns([1, 4])
+    with col_action:
+        do_refresh = st.button("Refresh Data Cache")
+    with col_text:
+        st.caption("Using Parquet/DuckDB cache for faster filtering. Refresh only after raw CSV changes.")
+    if do_refresh:
+        meta = refresh_fast_artifacts()
+        get_data.clear()
+        st.success(
+            f"Cache refreshed. Bus rows: {int(meta.get('rows_bus', 0)):,}; "
+            f"Subway rows: {int(meta.get('rows_subway', 0)):,}."
+        )
 
 
 def apply_theme() -> None:
@@ -85,6 +100,9 @@ def render_dataset_explorer(bus_rows: pd.DataFrame, subway_rows: pd.DataFrame) -
 
     dataset_label = st.radio("Dataset", options=["Bus", "Subway"], horizontal=True)
     frame = bus_rows if dataset_label == "Bus" else subway_rows
+    if "route_id_gtfs" in frame.columns:
+        gtfs_route = frame["route_id_gtfs"].astype("string").str.strip()
+        frame = frame.loc[gtfs_route.notna() & gtfs_route.ne("")].copy()
     frame = frame.sort_values(["service_date", "source_file"], ascending=[True, True]).reset_index(drop=True)
 
     if frame.empty:
@@ -125,7 +143,7 @@ def render_dataset_explorer(bus_rows: pd.DataFrame, subway_rows: pd.DataFrame) -
             st.markdown(f'<div class="metric-value">{value}</div>', unsafe_allow_html=True)
 
     st.caption(f"Filtered rows in window: {len(filtered):,}. Showing first {len(displayed):,} rows.")
-    st.dataframe(displayed, use_container_width=True, hide_index=True)
+    st.dataframe(displayed, width="stretch", hide_index=True)
 
 
 def render_story_overview(bus_rows: pd.DataFrame, subway_rows: pd.DataFrame) -> None:
@@ -149,14 +167,14 @@ def render_story_overview(bus_rows: pd.DataFrame, subway_rows: pd.DataFrame) -> 
     left, right = st.columns(2, gap="large")
     with left:
         st.subheader("Date Coverage")
-        st.dataframe(summaries["coverage"], use_container_width=True, hide_index=True)
+        st.dataframe(summaries["coverage"], width="stretch", hide_index=True)
         st.subheader("Top Bus Routes")
-        st.dataframe(summaries["bus_routes"], use_container_width=True, hide_index=True)
+        st.dataframe(summaries["bus_routes"], width="stretch", hide_index=True)
     with right:
         st.subheader("Top Subway Stations")
-        st.dataframe(summaries["subway_stations"], use_container_width=True, hide_index=True)
+        st.dataframe(summaries["subway_stations"], width="stretch", hide_index=True)
         st.subheader("Top Subway Lines")
-        st.dataframe(summaries["subway_lines"], use_container_width=True, hide_index=True)
+        st.dataframe(summaries["subway_lines"], width="stretch", hide_index=True)
 
 
 def render_placeholder_page(title: str, description: str) -> None:

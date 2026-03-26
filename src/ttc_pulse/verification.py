@@ -1,10 +1,20 @@
 from __future__ import annotations
 
-from ttc_pulse.service import load_clean_datasets
+import argparse
+
+from ttc_pulse.service import load_fast_datasets, refresh_fast_artifacts
 
 
 def main() -> None:
-    data = load_clean_datasets()
+    parser = argparse.ArgumentParser(description="Verify TTC Pulse data loading and artifacts.")
+    parser.add_argument("--refresh", action="store_true", help="Force rebuild parquet and duckdb artifacts before checks.")
+    args = parser.parse_args()
+
+    if args.refresh:
+        meta = refresh_fast_artifacts()
+        print("Artifacts refresh status:", meta)
+
+    data = load_fast_datasets(force_refresh=False)
     inventory = data["file_inventory"]
     bus = data["bus"]
     subway = data["subway"]

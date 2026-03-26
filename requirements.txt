@@ -1,3 +1,4 @@
 pandas>=2.2,<3.0
 streamlit>=1.42,<2.0
 pyarrow>=16,<21
+duckdb>=1.1,<2.0

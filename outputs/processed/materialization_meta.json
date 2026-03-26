@@ -1,0 +1,10 @@
+{
+  "latest_mtime": 1774311108.9656446,
+  "bus_files": 100,
+  "subway_files": 61,
+  "gtfs_files": 8,
+  "rows_bus": 773704,
+  "rows_subway": 249784,
+  "materialized": true,
+  "source": "rebuild"
+}
