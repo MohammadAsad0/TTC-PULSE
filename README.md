@@ -1,4 +1,4 @@
-# TTC Pulse
+﻿# TTC Pulse
 
 TTC Pulse is a DuckDB + Parquet + Streamlit analytics project for studying TTC reliability using:
 - historical TTC bus delay logs
@@ -61,20 +61,20 @@ Expected workspace layout:
 
 ```text
 TTC-PULSE/
-├── datasets/
-│   ├── 01_gtfs_merged/
-│   │   ├── routes.txt
-│   │   ├── trips.txt
-│   │   ├── stop_times.txt
-│   │   ├── stops.txt
-│   │   ├── calendar.txt
-│   │   ├── calendar_dates.txt
-│   │   └── shapes.txt
-│   ├── 02_bus_delay/
-│   │   └── csv/
-│   └── 03_subway_delay/
-│       └── csv/
-└── ttc_pulse/
+â”œâ”€â”€ datasets/
+â”‚   â”œâ”€â”€ 01_gtfs_merged/
+â”‚   â”‚   â”œâ”€â”€ routes.txt
+â”‚   â”‚   â”œâ”€â”€ trips.txt
+â”‚   â”‚   â”œâ”€â”€ stop_times.txt
+â”‚   â”‚   â”œâ”€â”€ stops.txt
+â”‚   â”‚   â”œâ”€â”€ calendar.txt
+â”‚   â”‚   â”œâ”€â”€ calendar_dates.txt
+â”‚   â”‚   â””â”€â”€ shapes.txt
+â”‚   â”œâ”€â”€ 02_bus_delay/
+â”‚   â”‚   â””â”€â”€ csv/
+â”‚   â””â”€â”€ 03_subway_delay/
+â”‚       â””â”€â”€ csv/
+â””â”€â”€ ttc_pulse/
 ```
 
 Notes:
@@ -110,9 +110,7 @@ streamlit run app/streamlit_app.py
 If the Gold parquet outputs are already present in the repo or your local copy, you can often skip directly to:
 
 ```bash
-
 streamlit run app/streamlit_app.py
-
 ```
 
 ## Step-by-Step Execution
@@ -259,3 +257,36 @@ The current dashboard includes:
 - Spatial Hotspot Map
 - Bus Reliability Drill-Down
 - Subway Reliability Drill-Down
+- AI-chat bot
+
+## AI Chat Bot
+
+A new dashboard page is available under **Deep dive -> AI-chat bot**.
+
+### OpenAI setup
+
+1. Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+2. Create a `.env` file in the project root:
+
+```env
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-5.4-mini
+```
+
+### Recommended models
+
+- `gpt-5.4-mini` (recommended default): better cost/latency for interactive dashboard chat.
+- `gpt-5.4`: higher quality for deeper analysis and longer reasoning.
+
+The chatbot uses the loaded TTC dataset context (DuckDB/parquet Gold tables) to answer:
+- reliability pattern questions
+- practical data-driven mitigation ideas
+- forward-looking delay risk discussions (with explicit assumptions)
+
+
+
