@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
@@ -22,6 +22,7 @@ def _bootstrap_src_path() -> None:
 _bootstrap_src_path()
 
 from ttc_pulse.dashboard.formatting import DAY_NAME_ORDER, fmt_float, fmt_int
+from ttc_pulse.dashboard.ai_explain import render_ai_explain_block
 from ttc_pulse.dashboard.loaders import query_table
 from ttc_pulse.dashboard.metric_config import METRIC_OPTIONS, metric_axis_title, resolve_metric_choice
 from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector
@@ -634,7 +635,7 @@ if selected_mode == "bus" or (selected_mode == "subway" and subway_scope == "lin
         route_short_name = str(getattr(row, "route_short_name", "")).strip() or route_id
         route_long_name = str(getattr(row, "route_long_name", "")).strip()
         if route_long_name:
-            bus_route_labels[route_id] = f"{prefix} {route_short_name} — {route_long_name}"
+            bus_route_labels[route_id] = f"{prefix} {route_short_name} - {route_long_name}"
         else:
             bus_route_labels[route_id] = f"{prefix} {route_short_name}"
 bus_label_to_route = {label: route_id for route_id, label in bus_route_labels.items()}
@@ -702,7 +703,7 @@ year_chart = (
     alt.Chart(year_frame)
     .mark_bar()
     .encode(
-        x=alt.X("year:O", title="Year"),
+        x=alt.X("year:O", title="Year", axis=alt.Axis(labelAngle=0)),
         y=alt.Y(f"{metric_column}:Q", title=metric_axis_title(metric_title)),
         color=alt.condition(year_click, alt.value("#1f77b4"), alt.value("#b5c3d7")),
         tooltip=["year:Q", f"{metric_column}:Q", "frequency:Q", "severity_p90:Q", "regularity_p90:Q", "cause_mix_score:Q", "composite_score:Q"],
@@ -718,6 +719,20 @@ year_event = st.altair_chart(
     key=chart_key,
     on_select="rerun",
     selection_mode=selection_name,
+)
+render_ai_explain_block(
+    page_name="Drill-Down Explorer",
+    chart_id="year_profile",
+    chart_title=f"{selected_entity_display}: Year Profile",
+    filters={
+        "mode": selected_mode,
+        "scope": subway_scope,
+        "entity_id": selected_entity_id,
+        "metric": metric_title,
+        "start_date": selected_start_iso,
+        "end_date": selected_end_iso,
+    },
+    frame=year_frame,
 )
 
 selected_year_from_chart = _extract_year_from_chart_event(year_event, selection_name=selection_name)
@@ -801,6 +816,19 @@ month_event = st.altair_chart(
     on_select="rerun",
     selection_mode=month_selection_name,
 )
+render_ai_explain_block(
+    page_name="Drill-Down Explorer",
+    chart_id="month_profile",
+    chart_title=f"Monthly Profile ({selected_year})",
+    filters={
+        "mode": selected_mode,
+        "scope": subway_scope,
+        "entity_id": selected_entity_id,
+        "year": selected_year,
+        "metric": metric_title,
+    },
+    frame=month_frame,
+)
 
 month_choice_to_num = dict(zip(month_frame["month_choice"], month_frame["month_num"]))
 month_num_to_choice = {month_num: month_choice for month_choice, month_num in month_choice_to_num.items()}
@@ -865,7 +893,7 @@ weekday_chart = (
     alt.Chart(weekday_frame)
     .mark_bar()
     .encode(
-        x=alt.X("day_name:N", sort=DAY_NAME_ORDER, title="Weekday"),
+        x=alt.X("day_name:N", sort=DAY_NAME_ORDER, title="Weekday", axis=alt.Axis(labelAngle=0)),
         y=alt.Y(f"{metric_column}:Q", title=metric_axis_title(metric_title)),
         color=alt.condition(weekday_click, alt.value("#1f77b4"), alt.value("#b5c3d7")),
         tooltip=["day_name:N", f"{metric_column}:Q", "frequency:Q", "severity_p90:Q", "regularity_p90:Q", "cause_mix_score:Q", "composite_score:Q"],
@@ -884,6 +912,20 @@ weekday_event = st.altair_chart(
     key=weekday_chart_key,
     on_select="rerun",
     selection_mode=weekday_selection_name,
+)
+render_ai_explain_block(
+    page_name="Drill-Down Explorer",
+    chart_id="weekday_profile",
+    chart_title=f"Weekday Profile ({weekday_scope})",
+    filters={
+        "mode": selected_mode,
+        "scope": subway_scope,
+        "entity_id": selected_entity_id,
+        "year": selected_year,
+        "month": selected_month_num,
+        "metric": metric_title,
+    },
+    frame=weekday_frame,
 )
 
 weekday_options = ["All weekdays"] + DAY_NAME_ORDER
@@ -942,7 +984,7 @@ if selected_month_num is not None:
             alt.Chart(weekly_heatmap)
             .mark_rect()
             .encode(
-                x=alt.X("day_name:N", sort=DAY_NAME_ORDER, title="Weekday"),
+                x=alt.X("day_name:N", sort=DAY_NAME_ORDER, title="Weekday", axis=alt.Axis(labelAngle=0)),
                 y=alt.Y("week_of_month:O", title="Week of Month"),
                 color=alt.Color(f"{metric_column}:Q", title=metric_axis_title(metric_title)),
                 tooltip=["week_of_month:Q", "day_name:N", f"{metric_column}:Q", "frequency:Q", "severity_p90:Q", "regularity_p90:Q", "cause_mix_score:Q", "composite_score:Q"],
@@ -950,6 +992,20 @@ if selected_month_num is not None:
             .properties(title=f"Weekly Heatmap ({selected_month_label} {selected_year})", height=280)
         )
         st.altair_chart(heatmap_chart, use_container_width=True)
+        render_ai_explain_block(
+            page_name="Drill-Down Explorer",
+            chart_id="weekly_heatmap",
+            chart_title=f"Weekly Heatmap ({selected_month_label} {selected_year})",
+            filters={
+                "mode": selected_mode,
+                "scope": subway_scope,
+                "entity_id": selected_entity_id,
+                "year": selected_year,
+                "month": selected_month_num,
+                "metric": metric_title,
+            },
+            frame=weekly_heatmap,
+        )
     elif weekly_heatmap_result.status in {"missing", "error"}:
         st.info("Weekly heatmap is unavailable in the current environment.")
     else:
@@ -983,13 +1039,28 @@ if time_bin_result.status == "ok" and not time_bin_result.frame.empty:
         alt.Chart(time_bin_frame)
         .mark_bar()
         .encode(
-            x=alt.X("time_bin:N", title="Time Bin"),
+            x=alt.X("time_bin:N", title="Time Bin", axis=alt.Axis(labelAngle=0)),
             y=alt.Y(f"{metric_column}:Q", title=metric_axis_title(metric_title)),
             tooltip=["time_bin:N", f"{metric_column}:Q", "frequency:Q", "severity_p90:Q", "regularity_p90:Q", "cause_mix_score:Q", "composite_score:Q"],
         )
         .properties(title=f"Time-of-Day Profile ({time_scope})", height=max(280, len(time_bin_frame.index) * 28 + 40))
     )
     st.altair_chart(time_chart, use_container_width=True)
+    render_ai_explain_block(
+        page_name="Drill-Down Explorer",
+        chart_id="time_of_day_profile",
+        chart_title=f"Time-of-Day Profile ({time_scope})",
+        filters={
+            "mode": selected_mode,
+            "scope": subway_scope,
+            "entity_id": selected_entity_id,
+            "year": selected_year,
+            "month": selected_month_num,
+            "weekday": selected_weekday,
+            "metric": metric_title,
+        },
+        frame=time_bin_frame,
+    )
 elif time_bin_result.status in {"missing", "error"}:
     st.info("Time-of-day profile is unavailable in the current environment.")
 else:
@@ -1001,3 +1072,5 @@ if not presentation:
         st.dataframe(year_frame, use_container_width=True, hide_index=True)
 
 next_question_hint("Do live alerts currently align with historical hotspots? Open: Live Alert Alignment.")
+
+

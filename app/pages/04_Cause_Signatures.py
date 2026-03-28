@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
@@ -21,6 +21,7 @@ def _bootstrap_src_path() -> None:
 _bootstrap_src_path()
 
 from ttc_pulse.dashboard.charts import horizontal_bar_chart, stacked_bar_chart
+from ttc_pulse.dashboard.ai_explain import render_ai_explain_block
 from ttc_pulse.dashboard.formatting import fmt_pct
 from ttc_pulse.dashboard.loaders import query_table
 from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector
@@ -181,6 +182,18 @@ bar_chart = horizontal_bar_chart(
 )
 if bar_chart is not None:
     st.altair_chart(bar_chart, use_container_width=True)
+    render_ai_explain_block(
+        page_name="Cause Signatures",
+        chart_id="top_categories_bar",
+        chart_title=f"{selected_mode.title()} Top Cause Categories",
+        filters={
+            "mode": selected_mode,
+            "top_n": top_n,
+            "start_date": selected_start_iso,
+            "end_date": selected_end_iso,
+        },
+        frame=mode_totals,
+    )
 
 if not presentation:
     table_totals = mode_totals.copy()
@@ -212,5 +225,17 @@ trend_chart = stacked_bar_chart(
 )
 if trend_chart is not None:
     st.altair_chart(trend_chart, use_container_width=True)
+    render_ai_explain_block(
+        page_name="Cause Signatures",
+        chart_id="monthly_cause_trend",
+        chart_title="Monthly Cause Signature Trend",
+        filters={
+            "mode": selected_mode,
+            "top_n": top_n,
+            "start_date": selected_start_iso,
+            "end_date": selected_end_iso,
+        },
+        frame=monthly,
+    )
 
 next_question_hint("How does one route/station behave across time slices? Open: Drill-Down Explorer.")

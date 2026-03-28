@@ -22,6 +22,7 @@ def _bootstrap_src_path() -> None:
 _bootstrap_src_path()
 
 from ttc_pulse.dashboard.formatting import sort_day_name
+from ttc_pulse.dashboard.ai_explain import render_ai_explain_block
 from ttc_pulse.dashboard.loaders import query_table
 from ttc_pulse.dashboard.metric_config import METRIC_OPTIONS, metric_axis_title, resolve_metric_choice
 from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector
@@ -310,7 +311,7 @@ heatmap_chart = (
     alt.Chart(heatmap)
     .mark_rect()
     .encode(
-        x=alt.X("hour_bin:O", title="Hour of Day"),
+        x=alt.X("hour_bin:O", title="Hour of Day", axis=alt.Axis(labelAngle=0)),
         y=alt.Y("day_name:N", title="Weekday"),
         color=alt.Color(f"{metric_column}:Q", title=metric_axis_title(metric_title)),
         tooltip=["day_name:N", "hour_bin:Q", f"{metric_column}:Q", "frequency:Q", "severity_p90:Q", "regularity_p90:Q", "cause_mix_score:Q", "composite_score:Q"],
@@ -321,6 +322,18 @@ heatmap_chart = (
     )
 )
 st.altair_chart(heatmap_chart, use_container_width=True)
+render_ai_explain_block(
+    page_name="Time Patterns",
+    chart_id="weekday_hour_heatmap",
+    chart_title=f"{selected_mode.title()} {metric_title} by Weekday and Hour",
+    filters={
+        "mode": selected_mode,
+        "metric": metric_title,
+        "start_date": selected_start_iso,
+        "end_date": selected_end_iso,
+    },
+    frame=heatmap,
+)
 
 route_monthly_result = _load_route_monthly(selected_start_iso, selected_end_iso)
 station_monthly_result = _load_station_monthly(selected_start_iso, selected_end_iso)
@@ -355,7 +368,7 @@ monthly_chart = (
     alt.Chart(monthly)
     .mark_line(point=alt.OverlayMarkDef(filled=True, size=65), strokeWidth=2.2)
     .encode(
-        x=alt.X("month_start:T", title="Month", axis=alt.Axis(format="%Y-%m", labelAngle=-30)),
+        x=alt.X("month_start:T", title="Month", axis=alt.Axis(format="%Y-%m", labelAngle=0)),
         y=alt.Y(f"{trend_metric}:Q", title=axis_title),
         color=alt.Color("series_label:N", title="Series"),
         tooltip=["month_start:T", "series_label:N", "frequency:Q", "severity_p90:Q", "regularity_p90:Q", "cause_mix_score:Q", "composite_score:Q"],
@@ -364,9 +377,26 @@ monthly_chart = (
     .interactive()
 )
 st.altair_chart(monthly_chart, use_container_width=True)
+render_ai_explain_block(
+    page_name="Time Patterns",
+    chart_id="monthly_support_trend",
+    chart_title="Monthly Supporting Trend",
+    filters={
+        "mode": selected_mode,
+        "metric": metric_title,
+        "trend_metric": trend_metric,
+        "start_date": selected_start_iso,
+        "end_date": selected_end_iso,
+        "presentation_mode": presentation,
+    },
+    frame=monthly,
+)
 
 if not presentation:
     monthly_table = monthly.sort_values(["month_start", "series_label"], ascending=[False, True]).copy()
     st.dataframe(monthly_table, use_container_width=True, hide_index=True)
 
 next_question_hint("What causes dominate these hotspots? Open: Cause Signatures.")
+
+
+

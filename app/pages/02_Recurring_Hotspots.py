@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
@@ -23,6 +23,7 @@ def _bootstrap_src_path() -> None:
 _bootstrap_src_path()
 
 from ttc_pulse.dashboard.formatting import fmt_float, fmt_int
+from ttc_pulse.dashboard.ai_explain import render_ai_explain_block
 from ttc_pulse.dashboard.loaders import GOLD_TABLE_FILES, query_table, resolve_project_root
 from ttc_pulse.dashboard.metric_config import METRIC_OPTIONS, metric_axis_title, resolve_metric_choice
 from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector
@@ -457,7 +458,7 @@ if selected_mode == "bus" or (selected_mode == "subway" and subway_scope == "lin
         route_short_name = str(getattr(row, "route_short_name", "")).strip() or route_id
         route_long_name = str(getattr(row, "route_long_name", "")).strip()
         if route_long_name:
-            route_labels[route_id] = f"{prefix} {route_short_name} — {route_long_name}"
+            route_labels[route_id] = f"{prefix} {route_short_name} - {route_long_name}"
         else:
             route_labels[route_id] = f"{prefix} {route_short_name}"
 
@@ -490,7 +491,7 @@ chart = (
     .mark_bar()
     .encode(
         x=alt.X(f"{metric_column}:Q", title=metric_axis_title(metric_title)),
-        y=alt.Y("entity_label:N", sort="-x", title=entity_title),
+        y=alt.Y("entity_label:N", sort="-x", title=entity_title, axis=alt.Axis(labelLimit=500)),
         tooltip=[
             "entity_label:N",
             "rank_position:Q",
@@ -508,6 +509,21 @@ chart = (
     )
 )
 st.altair_chart(chart, use_container_width=True)
+render_ai_explain_block(
+    page_name="Recurring Hotspots",
+    chart_id="ranking_bar",
+    chart_title=f"Top {selected_mode.title()} {entity_title}s by {metric_title}",
+    filters={
+        "mode": selected_mode,
+        "subway_scope": subway_scope,
+        "metric": metric_title,
+        "top_n": top_n,
+        "start_date": selected_start_iso,
+        "end_date": selected_end_iso,
+        "min_frequency": min_frequency,
+    },
+    frame=ranking.assign(entity_label=ranking["entity_id"].map(_entity_display)),
+)
 
 if not presentation:
     ranking_view = ranking.copy()
@@ -521,6 +537,7 @@ if not presentation:
 st.markdown("---")
 st.markdown("#### Spatial Map")
 
+spatial_for_ai = pd.DataFrame()
 spatial_result = (
     _load_bus_spatial_hotspot_provisional(selected_start_iso, selected_end_iso)
     if selected_mode == "bus"
@@ -545,6 +562,7 @@ else:
         else:
             spatial_metric = metric_column if metric_column in spatial.columns else "composite_score"
             spatial = spatial.sort_values(spatial_metric, ascending=False, na_position="last").head(min(top_n, len(spatial)))
+            spatial_for_ai = spatial.copy()
             metric_vals = pd.to_numeric(spatial[spatial_metric], errors="coerce").fillna(0.0)
             min_metric = float(metric_vals.min()) if not metric_vals.empty else 0.0
             max_metric = float(metric_vals.max()) if not metric_vals.empty else 0.0
@@ -592,4 +610,26 @@ else:
             if not presentation:
                 st.dataframe(spatial, use_container_width=True, hide_index=True)
 
+render_ai_explain_block(
+    page_name="Recurring Hotspots",
+    chart_id="spatial_map_summary",
+    chart_title=f"{selected_mode.title()} Spatial Map Summary",
+    filters={
+        "mode": selected_mode,
+        "subway_scope": subway_scope,
+        "metric": metric_title,
+        "top_n": top_n,
+        "start_date": selected_start_iso,
+        "end_date": selected_end_iso,
+    },
+    frame=spatial_for_ai,
+    notes=(
+        "Spatial map explanation is based on mapped hotspot rows, not image parsing. "
+        "Bus map uses provisional route centroid estimates."
+    ),
+)
+
 next_question_hint("When do these hotspots recur most often? Open: Time Patterns.")
+
+
+

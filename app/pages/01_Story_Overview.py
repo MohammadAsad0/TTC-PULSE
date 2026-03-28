@@ -22,6 +22,7 @@ def _bootstrap_src_path() -> None:
 _bootstrap_src_path()
 
 from ttc_pulse.dashboard.formatting import fmt_float, fmt_int
+from ttc_pulse.dashboard.ai_explain import render_ai_explain_block
 from ttc_pulse.dashboard.loaders import query_table
 from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector
 
@@ -260,7 +261,7 @@ chart = (
     alt.Chart(trend_plot)
     .mark_line(point=True)
     .encode(
-        x=alt.X("month_start:T", title="Month"),
+        x=alt.X("month_start:T", title="Month", axis=alt.Axis(labelAngle=0)),
         y=alt.Y("value:Q", title="Metric Value"),
         color=alt.Color("metric:N", title="Metric"),
         tooltip=["month_start:T", "metric:N", "value:Q"],
@@ -272,6 +273,19 @@ chart = (
     .interactive()
 )
 st.altair_chart(chart, use_container_width=True)
+render_ai_explain_block(
+    page_name="Story Overview",
+    chart_id="monthly_reliability_trend",
+    chart_title=f"{selected_mode.title()} Reliability Pattern Over Time",
+    filters={
+        "mode": selected_mode,
+        "start_date": selected_start_iso,
+        "end_date": selected_end_iso,
+        "presentation_mode": presentation,
+        "metrics": ",".join(metric_focus),
+    },
+    frame=trend_plot,
+)
 
 bus_hotspot_result = _load_mode_hotspot_snapshot(selected_start_iso, selected_end_iso)
 subway_hotspot_result = _load_subway_hotspot_snapshot(selected_start_iso, selected_end_iso)
@@ -299,4 +313,7 @@ if presentation:
     st.caption("Presentation mode keeps only summary evidence. Switch to Exploration for full tables and controls.")
 
 next_question_hint("Which routes/stations repeatedly dominate risk? Open: Recurring Hotspots.")
+
+
+
 

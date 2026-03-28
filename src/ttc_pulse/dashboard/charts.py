@@ -1,4 +1,4 @@
-"""Reusable Altair chart builders for Streamlit pages."""
+﻿"""Reusable Altair chart builders for Streamlit pages."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def line_chart(
         return None
 
     chart = alt.Chart(frame).mark_line(point=True).encode(
-        x=alt.X(x),
+        x=alt.X(x, axis=alt.Axis(labelAngle=0)),
         y=alt.Y(y),
         tooltip=list(tooltip or []),
     )
@@ -53,7 +53,7 @@ def stacked_bar_chart(
         alt.Chart(frame)
         .mark_bar()
         .encode(
-            x=alt.X(x),
+            x=alt.X(x, axis=alt.Axis(labelAngle=0)),
             y=alt.Y(y),
             color=alt.Color(color),
             tooltip=list(tooltip or []),
@@ -77,7 +77,7 @@ def horizontal_bar_chart(
         return None
 
     chart = alt.Chart(frame).mark_bar().encode(
-        x=alt.X(x),
+        x=alt.X(x, axis=alt.Axis(labelAngle=0)),
         y=alt.Y(y, sort="-x"),
         tooltip=list(tooltip or []),
     )
@@ -103,7 +103,7 @@ def heatmap_chart(
         alt.Chart(frame)
         .mark_rect()
         .encode(
-            x=alt.X(x),
+            x=alt.X(x, axis=alt.Axis(labelAngle=0)),
             y=alt.Y(y),
             color=alt.Color(color, scale=alt.Scale(scheme="tealblues")),
             tooltip=list(tooltip or []),
@@ -118,3 +118,4 @@ __all__ = [
     "line_chart",
     "stacked_bar_chart",
 ]
+
