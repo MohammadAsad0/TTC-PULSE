@@ -1,4 +1,4 @@
-﻿# TTC Pulse
+# TTC Pulse
 
 TTC Pulse is a DuckDB + Parquet + Streamlit analytics project for studying TTC reliability using:
 - historical TTC bus delay logs
@@ -61,20 +61,20 @@ Expected workspace layout:
 
 ```text
 TTC-PULSE/
-â”œâ”€â”€ datasets/
-â”‚   â”œâ”€â”€ 01_gtfs_merged/
-â”‚   â”‚   â”œâ”€â”€ routes.txt
-â”‚   â”‚   â”œâ”€â”€ trips.txt
-â”‚   â”‚   â”œâ”€â”€ stop_times.txt
-â”‚   â”‚   â”œâ”€â”€ stops.txt
-â”‚   â”‚   â”œâ”€â”€ calendar.txt
-â”‚   â”‚   â”œâ”€â”€ calendar_dates.txt
-â”‚   â”‚   â””â”€â”€ shapes.txt
-â”‚   â”œâ”€â”€ 02_bus_delay/
-â”‚   â”‚   â””â”€â”€ csv/
-â”‚   â””â”€â”€ 03_subway_delay/
-â”‚       â””â”€â”€ csv/
-â””â”€â”€ ttc_pulse/
+|-- datasets/
+|   |-- 01_gtfs_merged/
+|   |   |-- routes.txt
+|   |   |-- trips.txt
+|   |   |-- stop_times.txt
+|   |   |-- stops.txt
+|   |   |-- calendar.txt
+|   |   |-- calendar_dates.txt
+|   |   `-- shapes.txt
+|   |-- 02_bus_delay/
+|   |   `-- csv/
+|   `-- 03_subway_delay/
+|       `-- csv/
+`-- ttc_pulse/
 ```
 
 Notes:
