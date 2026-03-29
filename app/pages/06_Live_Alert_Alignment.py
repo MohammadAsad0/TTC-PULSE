@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 import sys
 
@@ -193,6 +194,20 @@ def _join_unique(values: pd.Series, limit: int = 4) -> str:
     return ", ".join(visible) + suffix
 
 
+def _with_alert_keys(alerts_frame: pd.DataFrame) -> pd.DataFrame:
+    frame = alerts_frame.copy()
+    alert_key = frame["alert_id"] if "alert_id" in frame.columns else pd.Series(pd.NA, index=frame.index, dtype="object")
+    if "header_text" in frame.columns:
+        alert_key = alert_key.fillna(frame["header_text"])
+    if "description_text" in frame.columns:
+        alert_key = alert_key.fillna(frame["description_text"])
+    missing_mask = alert_key.isna()
+    if missing_mask.any():
+        alert_key.loc[missing_mask] = frame.index[missing_mask].map(lambda idx: f"row-{idx}")
+    frame["alert_key"] = alert_key.astype(str)
+    return frame
+
+
 def _latest_alerts_table(alerts_frame: pd.DataFrame, limit: int = 5) -> pd.DataFrame:
     if alerts_frame.empty:
         return pd.DataFrame(columns=["captured_utc", "current_ttc_alert", "details", "affected_service", "service_tag"])
@@ -202,9 +217,7 @@ def _latest_alerts_table(alerts_frame: pd.DataFrame, limit: int = 5) -> pd.DataF
     if latest_snapshot.empty:
         return pd.DataFrame(columns=["captured_utc", "current_ttc_alert", "details", "affected_service", "service_tag"])
 
-    latest_snapshot["alert_key"] = (
-        latest_snapshot["alert_id"].fillna(latest_snapshot["header_text"]).fillna(latest_snapshot["description_text"])
-    )
+    latest_snapshot = _with_alert_keys(latest_snapshot)
     latest_snapshot["header_text"] = latest_snapshot["header_text"].fillna("Service notice")
     latest_snapshot["description_text"] = latest_snapshot["description_text"].fillna(
         "No TTC alert description was provided in the live feed."
@@ -244,16 +257,54 @@ def _hit_rate_frame(
         empty = pd.DataFrame(columns=["series", "rate"])
         return empty, {"hit_rate": 0.0, "baseline_rate": 0.0, "lift": 0.0, "route_alert_count": 0.0}
 
-    route_alerts = alerts_frame[alerts_frame["route_id"].notna()].copy()
+    scoped_alerts = alerts_frame.dropna(subset=["snapshot_ts_utc"]).copy()
+    if scoped_alerts.empty:
+        empty = pd.DataFrame(columns=["series", "rate"])
+        return empty, {"hit_rate": 0.0, "baseline_rate": 0.0, "lift": 0.0, "route_alert_count": 0.0}
+
+    latest_snapshot_ts = scoped_alerts["snapshot_ts_utc"].max()
+    scoped_alerts = scoped_alerts[scoped_alerts["snapshot_ts_utc"] == latest_snapshot_ts].copy()
+    route_alerts = scoped_alerts[scoped_alerts["route_id"].notna()].copy()
+    if route_alerts.empty:
+        empty = pd.DataFrame(columns=["series", "rate"])
+        return empty, {"hit_rate": 0.0, "baseline_rate": 0.0, "lift": 0.0, "route_alert_count": 0.0}
+
+    route_alerts = _with_alert_keys(route_alerts)
     route_alerts["route_id"] = route_alerts["route_id"].astype(str)
     hotspot_routes = set(hotspot_frame["entity_id"].astype(str).tolist())
-    hit_mask = route_alerts["route_id"].isin(hotspot_routes)
-    hit_rate = float(hit_mask.mean()) if len(route_alerts) else 0.0
-    baseline_rate = float(len(hotspot_routes) / route_universe_size) if route_universe_size else 0.0
+    route_pairs = route_alerts[["alert_key", "route_id"]].drop_duplicates()
+    if route_pairs.empty:
+        empty = pd.DataFrame(columns=["series", "rate"])
+        return empty, {"hit_rate": 0.0, "baseline_rate": 0.0, "lift": 0.0, "route_alert_count": 0.0}
+
+    hotspot_count = len(hotspot_routes)
+
+    def _baseline_hit_probability(route_count: int) -> float:
+        if route_count <= 0 or route_universe_size <= 0 or hotspot_count <= 0:
+            return 0.0
+        clipped_route_count = min(int(route_count), int(route_universe_size))
+        if clipped_route_count > route_universe_size - hotspot_count:
+            return 1.0
+        return 1.0 - (
+            math.comb(route_universe_size - hotspot_count, clipped_route_count)
+            / math.comb(route_universe_size, clipped_route_count)
+        )
+
+    alert_summary = (
+        route_pairs.assign(is_hotspot=route_pairs["route_id"].isin(hotspot_routes))
+        .groupby("alert_key", as_index=False)
+        .agg(
+            route_count=("route_id", "nunique"),
+            hits_hotspot=("is_hotspot", "max"),
+        )
+    )
+    alert_summary["baseline_hit_probability"] = alert_summary["route_count"].map(_baseline_hit_probability)
+    hit_rate = float(alert_summary["hits_hotspot"].mean()) if len(alert_summary) else 0.0
+    baseline_rate = float(alert_summary["baseline_hit_probability"].mean()) if len(alert_summary) else 0.0
     lift = float(hit_rate / baseline_rate) if baseline_rate else 0.0
     frame = pd.DataFrame(
         {
-            "series": ["Historical hotspot baseline", "Live route hit rate"],
+            "series": ["Historical hotspot baseline", "Live alert hit rate"],
             "rate": [baseline_rate, hit_rate],
         }
     )
@@ -261,7 +312,7 @@ def _hit_rate_frame(
         "hit_rate": hit_rate,
         "baseline_rate": baseline_rate,
         "lift": lift,
-        "route_alert_count": float(len(route_alerts)),
+        "route_alert_count": float(len(alert_summary)),
     }
 
 
@@ -305,8 +356,13 @@ total_captured_rows = int(len(archive_frame))
 snapshot_count = int(archive_summary["snapshot_ts_utc"].nunique())
 latest_capture_ts = archive_summary["snapshot_ts_utc"].max()
 latest_capture_rows = int(archive_summary.iloc[-1]["alert_rows"]) if not archive_summary.empty else 0
-route_linked_rows = int(archive_frame["route_id"].notna().sum())
-stop_linked_rows = int(archive_frame["stop_id"].notna().sum())
+latest_snapshot_frame = (
+    archive_frame[archive_frame["snapshot_ts_utc"] == latest_capture_ts].copy()
+    if latest_capture_ts is not None and not pd.isna(latest_capture_ts)
+    else archive_frame.iloc[0:0].copy()
+)
+route_linked_rows = int(latest_snapshot_frame["route_id"].notna().sum())
+stop_linked_rows = int(latest_snapshot_frame["stop_id"].notna().sum())
 
 validation_frame, hit_stats = _hit_rate_frame(archive_frame, hotspot_frame, route_universe_size)
 alert_scope_frame = _alert_scope_distribution_frame(archive_frame)
@@ -320,7 +376,7 @@ page_story_header(
     ),
 )
 st.caption(
-    "Hit rate shows how many current route-tagged TTC alerts land on historically bad routes, baseline rate is the share we would expect if alerts were spread across all routes, and lift shows how much stronger the real concentration is than that baseline."
+    "Hit rate shows how many current route-tagged TTC alerts include at least one historical hotspot route, baseline rate is the expected share after accounting for how many routes each alert tags, and lift shows how much stronger the real concentration is than that baseline."
 )
 
 kpi_a, kpi_b, kpi_c, kpi_d, kpi_e = st.columns(5)
