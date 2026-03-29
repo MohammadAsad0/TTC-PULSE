@@ -49,6 +49,29 @@ MODE_COLUMNS: dict[str, list[str]] = {
         "source_row_id",
         "ingested_at",
     ],
+    "streetcar": [
+        "service_date",
+        "event_ts",
+        "route_label_raw",
+        "route_short_name_norm",
+        "route_id_gtfs",
+        "location_text_raw",
+        "station_text_raw",
+        "incident_text_raw",
+        "incident_code_raw",
+        "incident_category",
+        "min_delay",
+        "min_gap",
+        "direction_raw",
+        "direction_norm",
+        "vehicle_id_raw",
+        "match_method",
+        "match_confidence",
+        "link_status",
+        "source_file",
+        "source_row_id",
+        "ingested_at",
+    ],
     "subway": [
         "service_date",
         "event_ts",
@@ -106,6 +129,7 @@ with header_right:
     paths = resolve_project_paths()
     raw_roots = [
         paths.project_root / "data" / "bus",
+        paths.project_root / "data" / "streetcar",
         paths.project_root / "data" / "subway",
         paths.project_root / "data" / "gtfs",
     ]
@@ -125,6 +149,7 @@ with header_right:
                     " | ".join(
                         [
                             f"Bus: {highlights.get('silver_bus_rows', 0):,}",
+                            f"Streetcar: {highlights.get('silver_streetcar_rows', 0):,}",
                             f"Subway: {highlights.get('silver_subway_rows', 0):,}",
                             f"Fact: {highlights.get('fact_delay_events_norm_rows', 0):,}",
                         ]
@@ -141,7 +166,7 @@ page_story_header(
     takeaway="This page exposes the row-level bus and subway event dataset with source lineage so date-window checks are transparent.",
 )
 
-selected_mode = st.radio("Dataset", options=["bus", "subway"], horizontal=True, format_func=str.title)
+selected_mode = st.radio("Dataset", options=["bus", "streetcar", "subway"], horizontal=True, format_func=str.title)
 coverage_result = _load_coverage(selected_mode)
 if coverage_result.status in {"missing", "error"}:
     st.error(coverage_result.message)
@@ -214,3 +239,9 @@ st.download_button(
     file_name=f"ttc_pulse_{selected_mode}_{start_iso}_to_{end_iso}.csv",
     mime="text/csv",
 )
+
+
+
+
+
+

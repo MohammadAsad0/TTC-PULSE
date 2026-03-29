@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
@@ -30,8 +30,8 @@ from ttc_pulse.utils.project_setup import resolve_project_paths
 
 
 def _mode_config(mode: str, scope: str = "station") -> tuple[str, str, str, str]:
-    if mode == "bus":
-        return "gold_route_time_metrics", "route_id_gtfs", "Route", "AND mode = 'bus'"
+    if mode in {"bus", "streetcar"}:
+        return "gold_route_time_metrics", "route_id_gtfs", ("Streetcar Route" if mode == "streetcar" else "Route"), f"AND mode = '{mode}'"
     if scope == "line":
         return "gold_route_time_metrics", "route_id_gtfs", "Line", "AND mode = 'subway'"
     return "gold_station_time_metrics", "station_canonical", "Station", ""
@@ -70,8 +70,8 @@ def _format_entity_label(
     entity_text = str(entity_id)
     if entity_labels is not None:
         return entity_labels.get(entity_text, f"{entity_prefix} {entity_text}")
-    if mode == "bus":
-        return f"Route {entity_text}"
+    if mode in {"bus", "streetcar"}:
+        return f"Streetcar Route {entity_text}" if mode == "streetcar" else f"Route {entity_text}"
     return entity_text
 
 
@@ -552,7 +552,7 @@ page_story_header(
     takeaway="The selected hotspot shows consistent temporal signatures that support targeted interventions.",
 )
 
-selected_mode = st.radio("Explorer Mode", options=["bus", "subway"], horizontal=True)
+selected_mode = st.radio("Explorer Mode", options=["bus", "streetcar", "subway"], horizontal=True)
 subway_scope = "station"
 if selected_mode == "subway":
     subway_scope = st.radio("Subway scope", options=["station", "line"], horizontal=True, key="drill_subway_scope")
@@ -625,9 +625,9 @@ ranking = ranking.sort_values([metric_column, "rank_position"], ascending=[False
 entity_options = ranking["entity_id"].astype(str).tolist()
 default_entity = entity_options[0]
 bus_route_labels: dict[str, str] = {}
-if selected_mode == "bus" or (selected_mode == "subway" and subway_scope == "line"):
-    route_catalog = _load_route_catalog("bus" if selected_mode == "bus" else "subway")
-    prefix = "Route" if selected_mode == "bus" else "Line"
+if selected_mode in {"bus", "streetcar"} or (selected_mode == "subway" and subway_scope == "line"):
+    route_catalog = _load_route_catalog("streetcar" if selected_mode == "streetcar" else ("bus" if selected_mode == "bus" else "subway"))
+    prefix = "Streetcar Route" if selected_mode == "streetcar" else ("Route" if selected_mode == "bus" else "Line")
     for row in route_catalog.itertuples(index=False):
         route_id = str(getattr(row, "route_id", "")).strip()
         if not route_id:
@@ -653,12 +653,12 @@ selected_entity = st.selectbox(
         selected_mode,
         entity_id,
         bus_route_labels if bus_route_labels else None,
-        "Route" if selected_mode == "bus" else "Line",
+        "Streetcar Route" if selected_mode == "streetcar" else ("Route" if selected_mode == "bus" else "Line"),
     ),
     key=entity_select_key,
 )
 selected_entity_id = str(selected_entity)
-if selected_mode == "bus" and selected_entity_id not in entity_options:
+if selected_mode in {"bus", "streetcar"} and selected_entity_id not in entity_options:
     selected_entity_id = bus_label_to_route.get(selected_entity_id, selected_entity_id)
 if selected_entity_id not in entity_options:
     selected_entity_id = default_entity
@@ -669,7 +669,7 @@ selected_entity_display = _format_entity_label(
     selected_mode,
     selected_entity_id,
     bus_route_labels if bus_route_labels else None,
-    "Route" if selected_mode == "bus" else "Line",
+    "Streetcar Route" if selected_mode == "streetcar" else ("Route" if selected_mode == "bus" else "Line"),
 )
 
 kpi_a, kpi_b, kpi_c, kpi_d, kpi_e = st.columns(5)
@@ -1072,5 +1072,6 @@ if not presentation:
         st.dataframe(year_frame, use_container_width=True, hide_index=True)
 
 next_question_hint("Do live alerts currently align with historical hotspots? Open: Live Alert Alignment.")
+
 
 

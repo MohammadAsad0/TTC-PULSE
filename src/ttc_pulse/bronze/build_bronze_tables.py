@@ -9,6 +9,7 @@ from typing import Any
 from ttc_pulse.alerts.load_parsed_into_bronze import load_parsed_alerts_into_bronze
 from ttc_pulse.ingestion.ingest_bus import ingest_bus_registry
 from ttc_pulse.ingestion.ingest_gtfs import ingest_gtfs_registry
+from ttc_pulse.ingestion.ingest_streetcar import ingest_streetcar_registry
 from ttc_pulse.ingestion.ingest_subway import ingest_subway_registry
 from ttc_pulse.ingestion.register_gtfsrt_snapshots import register_gtfsrt_snapshots
 from ttc_pulse.utils.project_setup import (
@@ -179,6 +180,7 @@ def _write_source_inventory(
     run_id: str,
     ingested_at: str,
     bus_result: dict[str, Any],
+    streetcar_result: dict[str, Any],
     subway_result: dict[str, Any],
     gtfs_result: dict[str, Any],
     gtfsrt_result: dict[str, Any],
@@ -192,6 +194,7 @@ def _write_source_inventory(
     lines.append("## Source Roots Used")
     lines.append("")
     lines.append(f"- Bus source root: `{bus_result['source_root']}`")
+    lines.append(f"- Streetcar source root: `{streetcar_result['source_root']}`")
     lines.append(f"- Subway source root: `{subway_result['source_root']}`")
     lines.append(f"- GTFS source root: `{gtfs_result['source_root']}`")
     lines.append("- GTFS-RT candidate roots:")
@@ -201,6 +204,7 @@ def _write_source_inventory(
     lines.append("## Discovery Metrics")
     lines.append("")
     lines.append(f"- Bus files discovered: **{bus_result['discovered_files']}**")
+    lines.append(f"- Streetcar files discovered: **{streetcar_result['discovered_files']}**")
     lines.append(f"- Subway files discovered: **{subway_result['discovered_files']}**")
     lines.append(f"- GTFS files discovered: **{gtfs_result['discovered_files']}**")
     lines.append(f"- GTFS-RT snapshot files discovered: **{gtfsrt_result['discovered_files']}**")
@@ -209,6 +213,9 @@ def _write_source_inventory(
     lines.append("")
     lines.append(
         f"- Bus registry CSV: `{bus_result['registry_csv_path']}` (table `{bus_result['registry_table']}`)"
+    )
+    lines.append(
+        f"- Streetcar registry CSV: `{streetcar_result['registry_csv_path']}` (table `{streetcar_result['registry_table']}`)"
     )
     lines.append(
         f"- Subway registry CSV: `{subway_result['registry_csv_path']}` (table `{subway_result['registry_table']}`)"
@@ -304,6 +311,18 @@ def run_step1() -> dict[str, Any]:
         }
     )
 
+    streetcar_result = ingest_streetcar_registry(connection, run_id=run_id, ingested_at=ingested_at)
+    log_rows.append(
+        {
+            "run_id": run_id,
+            "logged_at": utc_now_iso(),
+            "step": "ingest_streetcar_registry",
+            "status": "ok",
+            "row_count": streetcar_result["appended_registry_rows"],
+            "details": f"files={streetcar_result['discovered_files']}",
+        }
+    )
+
     subway_result = ingest_subway_registry(connection, run_id=run_id, ingested_at=ingested_at)
     log_rows.append(
         {
@@ -380,6 +399,23 @@ def run_step1() -> dict[str, Any]:
         }
     )
 
+    streetcar_bronze_count = _build_bronze_from_csv_files(
+        connection,
+        table_name="bronze_streetcar",
+        file_paths=[Path(path) for path in streetcar_result["files"]],
+        ingested_at=ingested_at,
+    )
+    log_rows.append(
+        {
+            "run_id": run_id,
+            "logged_at": utc_now_iso(),
+            "step": "build_bronze_streetcar",
+            "status": "ok",
+            "row_count": streetcar_bronze_count,
+            "details": "row-preserving streetcar bronze with lineage",
+        }
+    )
+
     gtfs_bronze_counts: dict[str, int] = {}
     for table_name in GTFS_REQUIRED_BRONZE_TABLES + GTFS_OPTIONAL_BRONZE_TABLES:
         bronze_table = f"bronze_gtfs_{table_name}"
@@ -451,12 +487,14 @@ def run_step1() -> dict[str, Any]:
 
     raw_registry_tables = [
         bus_result["registry_table"],
+        streetcar_result["registry_table"],
         subway_result["registry_table"],
         gtfs_result["registry_table"],
         gtfsrt_result["registry_table"],
     ]
     bronze_tables = [
         "bronze_bus",
+        "bronze_streetcar",
         "bronze_subway",
         *sorted(gtfs_bronze_counts.keys()),
         "bronze_gtfsrt_alerts",
@@ -477,6 +515,7 @@ def run_step1() -> dict[str, Any]:
         run_id=run_id,
         ingested_at=ingested_at,
         bus_result=bus_result,
+        streetcar_result=streetcar_result,
         subway_result=subway_result,
         gtfs_result=gtfs_result,
         gtfsrt_result=gtfsrt_result,
@@ -510,6 +549,7 @@ def run_step1() -> dict[str, Any]:
         "duckdb_path": paths.db_path.resolve().as_posix(),
         "source_results": {
             "bus": bus_result,
+            "streetcar": streetcar_result,
             "subway": subway_result,
             "gtfs": gtfs_result,
             "gtfsrt": gtfsrt_result,

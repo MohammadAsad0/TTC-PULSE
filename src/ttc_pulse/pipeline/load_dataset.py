@@ -18,6 +18,7 @@ from ttc_pulse.gtfs.build_dimensions import run as run_build_dimensions
 from ttc_pulse.marts.build_gold_rankings import run_build_all_gold_marts
 from ttc_pulse.normalization.normalize_bus import run_normalize_bus
 from ttc_pulse.normalization.normalize_gtfsrt_entities import run_normalize_gtfsrt_entities
+from ttc_pulse.normalization.normalize_streetcar import run_normalize_streetcar
 from ttc_pulse.normalization.normalize_subway import run_normalize_subway
 from ttc_pulse.normalization.register_step2_tables import run as run_register_step2_tables
 from ttc_pulse.utils.project_setup import resolve_project_paths, utc_now_iso
@@ -53,6 +54,7 @@ def run_load_dataset(db_path: Path | None = None) -> dict[str, Any]:
     incident_code = run_build_incident_code_dim()
     reviews = run_build_review_tables()
     bus = run_normalize_bus(db_path=resolved_db_path)
+    streetcar = run_normalize_streetcar(db_path=resolved_db_path)
     subway = run_normalize_subway(db_path=resolved_db_path)
     gtfsrt_entities = run_normalize_gtfsrt_entities(db_path=resolved_db_path)
     fact_delay = run_build_fact_delay_events_norm()
@@ -66,8 +68,10 @@ def run_load_dataset(db_path: Path | None = None) -> dict[str, Any]:
         "duckdb_path": resolved_db_path.as_posix(),
         "highlights": {
             "bronze_bus_rows": _safe_row_count(step1, ["bronze_bus"]),
+            "bronze_streetcar_rows": _safe_row_count(step1, ["bronze_streetcar"]),
             "bronze_subway_rows": _safe_row_count(step1, ["bronze_subway"]),
             "silver_bus_rows": _safe_row_count(bus),
+            "silver_streetcar_rows": _safe_row_count(streetcar),
             "silver_subway_rows": _safe_row_count(subway),
             "silver_gtfsrt_alert_entities_rows": _safe_row_count(gtfsrt_entities),
             "fact_delay_events_norm_rows": _safe_row_count(fact_delay),
@@ -89,6 +93,7 @@ def run_load_dataset(db_path: Path | None = None) -> dict[str, Any]:
             "build_incident_code_dim": incident_code,
             "build_review_tables": reviews,
             "normalize_bus": bus,
+            "normalize_streetcar": streetcar,
             "normalize_subway": subway,
             "normalize_gtfsrt_entities": gtfsrt_entities,
             "build_fact_delay_events_norm": fact_delay,
@@ -105,3 +110,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+

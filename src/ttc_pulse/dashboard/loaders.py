@@ -25,6 +25,7 @@ GOLD_TABLE_FILES: dict[str, str] = {
 
 DATASET_FILES: dict[str, str] = {
     "bus": "silver/silver_bus_events.parquet",
+    "streetcar": "silver/silver_streetcar_events.parquet",
     "subway": "silver/silver_subway_events.parquet",
 }
 

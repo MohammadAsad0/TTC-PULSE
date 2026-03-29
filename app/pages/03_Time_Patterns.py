@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
@@ -158,7 +158,7 @@ def _load_heatmap_metrics(start_date: str, end_date: str):
 
 
 @st.cache_data(ttl=120)
-def _load_route_monthly(start_date: str, end_date: str):
+def _load_route_monthly(route_mode: str, start_date: str, end_date: str):
     return query_table(
         table_name="gold_route_time_metrics",
         query_template="""
@@ -172,13 +172,13 @@ def _load_route_monthly(start_date: str, end_date: str):
             AVG(cause_mix_score) AS cause_mix_score,
             AVG(composite_score) AS composite_score
         FROM {source}
-        WHERE mode = 'bus'
+        WHERE mode = ?
             AND service_date IS NOT NULL
             AND service_date BETWEEN ? AND ?
         GROUP BY 1, 2, 3
         ORDER BY month_start, mode
         """,
-        params=[start_date, end_date],
+        params=[route_mode, start_date, end_date],
     )
 
 
@@ -227,6 +227,7 @@ def _series_label(mode: object, entity_type: object) -> str:
     mapping = {
         ("bus", "route"): "Bus Routes",
         ("subway", "route"): "Subway Routes",
+        ("streetcar", "route"): "Streetcar Routes",
         ("subway", "station"): "Subway Stations",
     }
     return mapping.get((mode_norm, entity_norm), f"{str(mode).title()} {str(entity_type).title()}")
@@ -335,7 +336,7 @@ render_ai_explain_block(
     frame=heatmap,
 )
 
-route_monthly_result = _load_route_monthly(selected_start_iso, selected_end_iso)
+route_monthly_result = _load_route_monthly(selected_mode, selected_start_iso, selected_end_iso)
 station_monthly_result = _load_station_monthly(selected_start_iso, selected_end_iso)
 if route_monthly_result.status in {"missing", "error"} and station_monthly_result.status in {"missing", "error"}:
     st.info("Monthly support trend is unavailable.")
@@ -397,6 +398,7 @@ if not presentation:
     st.dataframe(monthly_table, use_container_width=True, hide_index=True)
 
 next_question_hint("What causes dominate these hotspots? Open: Cause Signatures.")
+
 
 
 

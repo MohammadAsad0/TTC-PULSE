@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
@@ -119,12 +119,12 @@ def _load_monthly_reliability(start_date: str, end_date: str):
 
 
 @st.cache_data(ttl=120)
-def _load_mode_hotspot_snapshot(start_date: str, end_date: str):
+def _load_mode_hotspot_snapshot(mode: str, start_date: str, end_date: str):
     return query_table(
         table_name="gold_route_time_metrics",
         query_template="""
         SELECT
-            'bus' AS mode,
+            mode,
             route_id_gtfs AS entity_id,
             SUM(frequency)::DOUBLE AS frequency,
             quantile_cont(severity_p90, 0.9) FILTER (WHERE severity_p90 IS NOT NULL) AS severity_p90,
@@ -132,14 +132,14 @@ def _load_mode_hotspot_snapshot(start_date: str, end_date: str):
             AVG(cause_mix_score) FILTER (WHERE cause_mix_score IS NOT NULL) AS cause_mix_score,
             AVG(composite_score) FILTER (WHERE composite_score IS NOT NULL) AS composite_score
         FROM {source}
-        WHERE mode = 'bus'
+        WHERE mode = ?
             AND route_id_gtfs IS NOT NULL
             AND service_date BETWEEN ? AND ?
         GROUP BY 1, 2
         ORDER BY composite_score DESC NULLS LAST, frequency DESC
         LIMIT 8
         """,
-        params=[start_date, end_date],
+        params=[mode, start_date, end_date],
     )
 
 
@@ -214,7 +214,7 @@ if pd.isna(min_service_date) or pd.isna(max_service_date):
 min_date = min_service_date.date()
 max_date = max_service_date.date()
 
-selected_mode = st.selectbox("Mode", options=["bus", "subway"], index=0)
+selected_mode = st.selectbox("Mode", options=["bus", "streetcar", "subway"], index=0)
 date_selection = st.date_input(
     "Service date range",
     value=(min_date, max_date),
@@ -287,18 +287,18 @@ render_ai_explain_block(
     frame=trend_plot,
 )
 
-bus_hotspot_result = _load_mode_hotspot_snapshot(selected_start_iso, selected_end_iso)
+route_hotspot_result = _load_mode_hotspot_snapshot(selected_mode, selected_start_iso, selected_end_iso)
 subway_hotspot_result = _load_subway_hotspot_snapshot(selected_start_iso, selected_end_iso)
 
 left, right = st.columns(2)
 with left:
-    st.markdown("**Top Bus Routes in Window**")
-    if bus_hotspot_result.status == "ok" and not bus_hotspot_result.frame.empty:
-        bus_view = bus_hotspot_result.frame[["entity_id", "frequency", "severity_p90", "regularity_p90", "cause_mix_score", "composite_score"]].copy()
+    st.markdown("**Top Route Hotspots in Window**")
+    if route_hotspot_result.status == "ok" and not route_hotspot_result.frame.empty:
+        bus_view = route_hotspot_result.frame[["entity_id", "frequency", "severity_p90", "regularity_p90", "cause_mix_score", "composite_score"]].copy()
         bus_view = bus_view.rename(columns={"entity_id": "route_id"})
         st.dataframe(bus_view, use_container_width=True, hide_index=True)
     else:
-        st.caption("No bus hotspot snapshot available.")
+        st.caption("No route hotspot snapshot available.")
 
 with right:
     st.markdown("**Top Subway Stations in Window**")
@@ -313,6 +313,8 @@ if presentation:
     st.caption("Presentation mode keeps only summary evidence. Switch to Exploration for full tables and controls.")
 
 next_question_hint("Which routes/stations repeatedly dominate risk? Open: Recurring Hotspots.")
+
+
 
 
 

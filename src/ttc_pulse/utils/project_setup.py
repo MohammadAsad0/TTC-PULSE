@@ -74,6 +74,7 @@ def ensure_project_layout(paths: ProjectPaths) -> None:
     """Create required folders for Step 1 artifacts."""
     for directory in [
         paths.raw_root / "bus",
+        paths.raw_root / "streetcar",
         paths.raw_root / "subway",
         paths.raw_root / "gtfs",
         paths.raw_root / "gtfsrt",

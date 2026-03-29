@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
@@ -53,7 +53,7 @@ def _load_route_catalog(route_mode: str) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=120)
-def _load_bus_coverage_window():
+def _load_route_coverage_window(route_mode: str):
     return query_table(
         table_name="gold_route_time_metrics",
         query_template="""
@@ -61,10 +61,11 @@ def _load_bus_coverage_window():
             MIN(service_date) AS min_service_date,
             MAX(service_date) AS max_service_date
         FROM {source}
-        WHERE mode = 'bus'
+        WHERE mode = ?
             AND route_id_gtfs IS NOT NULL
             AND service_date IS NOT NULL
         """,
+            params=[route_mode],
     )
 
 
@@ -100,7 +101,7 @@ def _load_station_coverage_window():
 
 
 @st.cache_data(ttl=120)
-def _load_bus_route_rankings(start_date: str, end_date: str):
+def _load_route_rankings(route_mode: str, start_date: str, end_date: str):
     return query_table(
         table_name="gold_route_time_metrics",
         query_template="""
@@ -112,7 +113,7 @@ def _load_bus_route_rankings(start_date: str, end_date: str):
                 quantile_cont(regularity_p90, 0.9) FILTER (WHERE regularity_p90 IS NOT NULL) AS regularity_p90,
                 AVG(cause_mix_score) FILTER (WHERE cause_mix_score IS NOT NULL) AS cause_mix_score
             FROM {source}
-            WHERE mode = 'bus'
+            WHERE mode = ?
                 AND route_id_gtfs IS NOT NULL
                 AND service_date BETWEEN ? AND ?
             GROUP BY 1
@@ -143,7 +144,7 @@ def _load_bus_route_rankings(start_date: str, end_date: str):
         FROM scored
         ORDER BY rank_position ASC, entity_id
         """,
-        params=[start_date, end_date],
+        params=[route_mode, start_date, end_date],
     )
 
 
@@ -300,7 +301,7 @@ def _load_subway_spatial_hotspot_windowed(start_date: str, end_date: str):
 
 
 @st.cache_data(ttl=120)
-def _load_bus_spatial_hotspot_provisional(start_date: str, end_date: str):
+def _load_route_spatial_hotspot_provisional(route_mode: str, start_date: str, end_date: str):
     bridge_path = resolve_project_root() / "bridge" / "bridge_route_direction_stop.parquet"
     if not bridge_path.exists():
         return query_table(
@@ -331,13 +332,13 @@ def _load_bus_spatial_hotspot_provisional(start_date: str, end_date: str):
                 quantile_cont(regularity_p90, 0.9) FILTER (WHERE regularity_p90 IS NOT NULL) AS regularity_p90,
                 AVG(composite_score) FILTER (WHERE composite_score IS NOT NULL) AS composite_score
             FROM {{source}}
-            WHERE mode = 'bus'
+            WHERE mode = ?
                 AND route_id_gtfs IS NOT NULL
                 AND service_date BETWEEN ? AND ?
             GROUP BY 1
         )
         SELECT
-            'bus' AS mode,
+            '{route_mode}' AS mode,
             'route_centroid_provisional' AS spatial_unit_type,
             r.spatial_unit_id,
             c.centroid_lat,
@@ -351,7 +352,7 @@ def _load_bus_spatial_hotspot_provisional(start_date: str, end_date: str):
         JOIN route_centroids AS c
             ON r.spatial_unit_id = c.route_id_gtfs
         """,
-        params=[start_date, end_date],
+        params=[route_mode, start_date, end_date],
     )
 
 
@@ -381,14 +382,14 @@ page_story_header(
     takeaway="A small set of entities consistently appears at the top of the risk ranking across the selected window.",
 )
 
-selected_mode = st.radio("Entity scope", options=["bus", "subway"], horizontal=True)
+selected_mode = st.radio("Entity scope", options=["bus", "streetcar", "subway"], horizontal=True)
 subway_scope = "station"
 if selected_mode == "subway":
     subway_scope = st.radio("Subway scope", options=["station", "line"], horizontal=True, key="subway_hotspot_scope")
 
 coverage_result = (
-    _load_bus_coverage_window()
-    if selected_mode == "bus"
+    _load_route_coverage_window(selected_mode)
+    if selected_mode in {"bus", "streetcar"}
     else _load_subway_line_coverage_window() if subway_scope == "line" else _load_station_coverage_window()
 )
 if coverage_result.status in {"missing", "error"}:
@@ -429,8 +430,8 @@ selected_start_iso = selected_start_date.isoformat()
 selected_end_iso = selected_end_date.isoformat()
 
 ranking_result = (
-    _load_bus_route_rankings(selected_start_iso, selected_end_iso)
-    if selected_mode == "bus"
+    _load_route_rankings(selected_mode, selected_start_iso, selected_end_iso)
+    if selected_mode in {"bus", "streetcar"}
     else _load_subway_line_rankings(selected_start_iso, selected_end_iso) if subway_scope == "line" else _load_station_rankings(selected_start_iso, selected_end_iso)
 )
 if ranking_result.status in {"missing", "error"}:
@@ -447,10 +448,10 @@ if ranking.empty:
     st.stop()
 
 route_labels: dict[str, str] = {}
-if selected_mode == "bus" or (selected_mode == "subway" and subway_scope == "line"):
-    route_mode = "bus" if selected_mode == "bus" else "subway"
+if selected_mode in {"bus", "streetcar"} or (selected_mode == "subway" and subway_scope == "line"):
+    route_mode = "streetcar" if selected_mode == "streetcar" else ("bus" if selected_mode == "bus" else "subway")
     route_catalog = _load_route_catalog(route_mode)
-    prefix = "Route" if selected_mode == "bus" else "Line"
+    prefix = "Streetcar Route" if selected_mode == "streetcar" else ("Route" if selected_mode == "bus" else "Line")
     for row in route_catalog.itertuples(index=False):
         route_id = str(getattr(row, "route_id", "")).strip()
         if not route_id:
@@ -464,7 +465,7 @@ if selected_mode == "bus" or (selected_mode == "subway" and subway_scope == "lin
 
 def _entity_display(entity_id: object) -> str:
     entity_text = str(entity_id)
-    return route_labels.get(entity_text, entity_text if selected_mode == "subway" and subway_scope == "station" else f"{'Route' if selected_mode == 'bus' else 'Line'} {entity_text}")
+    return route_labels.get(entity_text, entity_text if selected_mode == "subway" and subway_scope == "station" else f"{'Streetcar Route' if selected_mode == 'streetcar' else ('Route' if selected_mode == 'bus' else 'Line')} {entity_text}")
 
 metric_resolution = resolve_metric_choice(ranking, selected_metric_label)
 if metric_resolution.fallback_used and metric_resolution.message:
@@ -478,7 +479,7 @@ if composite_selected:
 else:
     ranking = ranking.sort_values([metric_column, "rank_position"], ascending=[False, True]).head(top_n)
 
-entity_title = "Route" if selected_mode == "bus" else "Station"
+entity_title = "Streetcar Route" if selected_mode == "streetcar" else ("Route" if selected_mode == "bus" else "Station")
 if selected_mode == "subway" and subway_scope == "line":
     entity_title = "Line"
 kpi_a, kpi_b, kpi_c = st.columns(3)
@@ -539,8 +540,8 @@ st.markdown("#### Spatial Map")
 
 spatial_for_ai = pd.DataFrame()
 spatial_result = (
-    _load_bus_spatial_hotspot_provisional(selected_start_iso, selected_end_iso)
-    if selected_mode == "bus"
+    _load_route_spatial_hotspot_provisional(selected_mode, selected_start_iso, selected_end_iso)
+    if selected_mode in {"bus", "streetcar"}
     else _load_subway_spatial_hotspot_windowed(selected_start_iso, selected_end_iso)
 )
 
@@ -568,7 +569,7 @@ else:
             max_metric = float(metric_vals.max()) if not metric_vals.empty else 0.0
             denom = max(max_metric - min_metric, 1e-9)
             spatial["radius"] = 150 + ((metric_vals - min_metric) / denom) * 700
-            spatial["mode_color"] = [[214, 96, 77] if selected_mode == "bus" else [31, 119, 180] for _ in range(len(spatial))]
+            spatial["mode_color"] = [[214, 96, 77] if selected_mode in {"bus", "streetcar"} else [31, 119, 180] for _ in range(len(spatial))]
 
             view_state = pdk.ViewState(
                 latitude=float(spatial["centroid_lat"].mean()),
@@ -603,8 +604,8 @@ else:
                 )
             )
 
-            if selected_mode == "bus":
-                st.warning("Bus spatial points are provisional route-centroid estimates and should be interpreted directionally.")
+            if selected_mode in {"bus", "streetcar"}:
+                st.warning("Route spatial points are provisional route-centroid estimates and should be interpreted directionally.")
             elif subway_scope == "line":
                 st.info("Subway line rankings are shown above. Spatial point mapping stays at station level until line geometry is finalized.")
             if not presentation:
@@ -630,6 +631,8 @@ render_ai_explain_block(
 )
 
 next_question_hint("When do these hotspots recur most often? Open: Time Patterns.")
+
+
 
 
 

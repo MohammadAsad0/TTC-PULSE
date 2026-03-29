@@ -1,11 +1,12 @@
 # Source Inventory (Step 1 Ingestion/Foundation)
 
-- Run ID: `20260326T172850Z`
-- Ingested at (UTC): `2026-03-26T17:28:50Z`
+- Run ID: `20260328T233308Z`
+- Ingested at (UTC): `2026-03-28T23:33:08Z`
 
 ## Source Roots Used
 
 - Bus source root: `D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/bus`
+- Streetcar source root: `D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/streetcar`
 - Subway source root: `D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/subway`
 - GTFS source root: `D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs`
 - GTFS-RT candidate roots:
@@ -15,6 +16,7 @@
 ## Discovery Metrics
 
 - Bus files discovered: **100**
+- Streetcar files discovered: **112**
 - Subway files discovered: **61**
 - GTFS files discovered: **7**
 - GTFS-RT snapshot files discovered: **85**
@@ -22,6 +24,7 @@
 ## Raw Registry Outputs
 
 - Bus registry CSV: `D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/raw/bus/bus_file_registry.csv` (table `raw_bus_file_registry`)
+- Streetcar registry CSV: `D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/raw/streetcar/streetcar_file_registry.csv` (table `raw_streetcar_file_registry`)
 - Subway registry CSV: `D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/raw/subway/subway_file_registry.csv` (table `raw_subway_file_registry`)
 - GTFS registry CSV: `D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/raw/gtfs/gtfs_file_registry.csv` (table `raw_gtfs_file_registry`)
 - GTFS-RT registry CSV: `D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/raw/gtfsrt/gtfsrt_snapshot_registry.csv` (table `raw_gtfsrt_snapshot_registry`)

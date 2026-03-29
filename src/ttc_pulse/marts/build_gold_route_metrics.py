@@ -28,10 +28,10 @@ def _build_query() -> str:
         weights=DEFAULT_SCORE_WEIGHTS,
     )
     return f"""
-    WITH bus_route_reference AS (
-        SELECT DISTINCT route_id
+    WITH route_reference AS (
+        SELECT DISTINCT route_id, LOWER(COALESCE(route_mode, '')) AS route_mode
         FROM dim_route_gtfs
-        WHERE LOWER(COALESCE(route_mode, '')) = 'bus'
+        WHERE LOWER(COALESCE(route_mode, '')) IN ('bus', 'streetcar')
             AND route_id IS NOT NULL
     ),
     base AS (
@@ -48,13 +48,14 @@ def _build_query() -> str:
             AND service_date IS NOT NULL
             AND hour_bin IS NOT NULL
             AND (
-                LOWER(COALESCE(mode, '')) <> 'bus'
+                LOWER(COALESCE(mode, '')) NOT IN ('bus', 'streetcar')
                 OR (
                     LOWER(COALESCE(link_status, '')) = 'matched'
                     AND EXISTS (
                         SELECT 1
-                        FROM bus_route_reference br
-                        WHERE br.route_id = route_id_gtfs
+                        FROM route_reference rr
+                        WHERE rr.route_id = route_id_gtfs
+                            AND rr.route_mode = LOWER(COALESCE(mode, ''))
                     )
                 )
             )

@@ -27,6 +27,7 @@ class Step2TableSpec:
 
 STEP2_TABLE_SPECS = [
     Step2TableSpec("silver_bus_events", "silver/silver_bus_events.parquet"),
+    Step2TableSpec("silver_streetcar_events", "silver/silver_streetcar_events.parquet"),
     Step2TableSpec("silver_subway_events", "silver/silver_subway_events.parquet"),
     Step2TableSpec("silver_gtfsrt_alert_entities", "silver/silver_gtfsrt_alert_entities.parquet"),
     Step2TableSpec("fact_delay_events_norm", "silver/fact_delay_events_norm.parquet"),
