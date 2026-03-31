@@ -10,7 +10,7 @@ from ttc_pulse.utils.project_setup import (
     append_csv_rows,
     ensure_csv_header,
     file_checksum,
-    relative_posix,
+    project_display_path,
     resolve_project_paths,
 )
 
@@ -71,11 +71,11 @@ def discover_gtfsrt_snapshots() -> dict[str, Any]:
                 continue
             resolved = path.resolve()
             files.append(resolved)
-            source_lookup[resolved.as_posix()] = root.resolve().as_posix()
+            source_lookup[resolved.as_posix()] = project_display_path(root.resolve(), paths.project_root)
 
     unique_files = sorted({path.as_posix(): path for path in files}.values(), key=lambda p: p.as_posix())
     return {
-        "candidate_roots": [root.resolve().as_posix() for root in candidate_roots],
+        "candidate_roots": [project_display_path(root.resolve(), paths.project_root) for root in candidate_roots],
         "files": unique_files,
         "source_lookup": source_lookup,
         "registry_table": "raw_gtfsrt_snapshot_registry",
@@ -102,8 +102,8 @@ def register_gtfsrt_snapshots(connection: Any, run_id: str, ingested_at: str) ->
                 "ingested_at": ingested_at,
                 "source_dataset": "gtfsrt_snapshots",
                 "snapshot_source_dir": source_lookup.get(path.as_posix(), ""),
-                "source_path": path.as_posix(),
-                "source_rel_path": relative_posix(path, paths.workspace_root),
+                "source_path": project_display_path(path, paths.project_root),
+                "source_rel_path": project_display_path(path, paths.project_root),
                 "file_name": path.name,
                 "file_extension": path.suffix.lower(),
                 "file_size_bytes": stat.st_size,
@@ -164,9 +164,11 @@ def register_gtfsrt_snapshots(connection: Any, run_id: str, ingested_at: str) ->
         "source_name": "gtfsrt",
         "candidate_roots": discovered["candidate_roots"],
         "registry_table": registry_table,
-        "registry_csv_path": registry_csv_path.resolve().as_posix(),
-        "files": [path.as_posix() for path in files],
+        "registry_csv_path": project_display_path(registry_csv_path, paths.project_root),
+        "files": [project_display_path(path, paths.project_root) for path in files],
         "discovered_files": len(files),
         "appended_registry_rows": appended_rows,
         "registry_table_row_count": table_row_count,
     }
+
+

@@ -29,16 +29,16 @@ from ttc_pulse.alerts.poll_service_alerts import run_poll_service_alerts
 from ttc_pulse.dashboard.formatting import fmt_int, fmt_pct
 from ttc_pulse.dashboard.loaders import query_table
 from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector
-from ttc_pulse.utils.project_setup import resolve_project_paths
+from ttc_pulse.utils.project_setup import project_display_path, resolve_project_display_path, resolve_project_paths
 
 
 def _project_file(*parts: str) -> Path:
     return resolve_project_paths().project_root.joinpath(*parts)
 
 _DEFAULT_TTC_FEED_URLS = [
-    "https://gtfsrt.ttc.ca/service-alerts",
-    "https://gtfsrt.ttc.ca/alerts",
-    "https://bustime.ttc.ca/gtfsrt/alerts",
+    "https://gtfsrt.ttc.ca/alerts/subway?format=text",
+    "https://gtfsrt.ttc.ca/alerts/bus?format=text",
+    "https://gtfsrt.ttc.ca/alerts/streetcar?format=text",
 ]
 
 
@@ -58,6 +58,7 @@ def _run_manual_alert_refresh() -> dict[str, object]:
     poll_results: list[dict[str, object]] = []
     written_snapshot_paths: list[Path] = []
 
+    project_root = resolve_project_paths().project_root
     for index, feed_url in enumerate(feed_urls):
         poll_result = run_poll_service_alerts(
             as_of=base_ts + timedelta(seconds=index),
@@ -66,16 +67,23 @@ def _run_manual_alert_refresh() -> dict[str, object]:
             register_manifest=True,
             skip_if_unchanged=False,
         )
-        poll_results.append({
-            "feed_url": feed_url,
-            "status": str(poll_result.get("status") or "unknown"),
-            "http_status": poll_result.get("http_status"),
-            "notes": str(poll_result.get("notes") or "").strip(),
-        })
+        poll_results.append(
+            {
+                "feed_url": feed_url,
+                "status": str(poll_result.get("status") or "unknown"),
+                "http_status": poll_result.get("http_status"),
+                "notes": str(poll_result.get("notes") or "").strip(),
+            }
+        )
 
         output_path_text = str(poll_result.get("output_path") or "").strip()
+        output_path_fs_text = str(poll_result.get("output_path_fs") or "").strip()
         if output_path_text:
-            output_path = Path(output_path_text)
+            output_path = (
+                Path(output_path_fs_text).resolve()
+                if output_path_fs_text
+                else resolve_project_display_path(output_path_text, project_root)
+            )
             if output_path.exists():
                 written_snapshot_paths.append(output_path)
 
@@ -100,7 +108,11 @@ def _run_manual_alert_refresh() -> dict[str, object]:
             f"manual_refresh=yes; feeds={len(feed_urls)}; "
             f"statuses={','.join(sorted(poll_statuses))}; parse_status={parse_status}"
         ),
-        artifact_path=written_snapshot_paths[0].as_posix() if written_snapshot_paths else _project_file("alerts", "raw_snapshots").as_posix(),
+        artifact_path=(
+            project_display_path(written_snapshot_paths[0], project_root)
+            if written_snapshot_paths
+            else project_display_path(_project_file("alerts", "raw_snapshots"), project_root)
+        ),
     )
 
     return {
@@ -112,7 +124,6 @@ def _run_manual_alert_refresh() -> dict[str, object]:
         "cycle_status": cycle_status,
         "cycle_log": cycle_log,
     }
-
 
 @st.cache_data(ttl=30)
 def _load_alert_archive():
@@ -165,6 +176,9 @@ def _load_alert_archive():
         if column in frame.columns:
             frame[column] = frame[column].astype("string").str.strip()
             frame.loc[frame[column].isin(["", "nan", "None", "<NA>"]), column] = pd.NA
+            if column in {"cause", "effect"}:
+                frame[column] = frame[column].str.upper()
+                frame.loc[frame[column].isin(["UNKNOWN_CAUSE", "UNKNOWN_EFFECT", "CAUSE_UNKNOWN", "EFFECT_UNKNOWN"]), column] = pd.NA
 
     has_route = frame["route_id"].notna() if "route_id" in frame.columns else pd.Series(False, index=frame.index)
     has_stop = frame["stop_id"].notna() if "stop_id" in frame.columns else pd.Series(False, index=frame.index)
@@ -619,3 +633,7 @@ if not presentation:
         )
 
 next_question_hint("Need technical caveats and data-quality diagnostics? Open: Technical Appendix.")
+
+
+
+

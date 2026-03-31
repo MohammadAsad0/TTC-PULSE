@@ -10,7 +10,7 @@ from ttc_pulse.utils.project_setup import (
     append_csv_rows,
     ensure_csv_header,
     file_checksum,
-    relative_posix,
+    project_display_path,
     resolve_project_paths,
 )
 
@@ -94,9 +94,13 @@ def discover_gtfs_files() -> dict[str, Any]:
 
     all_tables = {**required, **optional}
     return {
-        "source_root": source_root.resolve().as_posix(),
-        "required_files": {key: value.resolve().as_posix() for key, value in required.items()},
-        "optional_files": {key: value.resolve().as_posix() for key, value in optional.items()},
+        "source_root": project_display_path(source_root, paths.project_root),
+        "required_files": {
+            key: project_display_path(value, paths.project_root) for key, value in required.items()
+        },
+        "optional_files": {
+            key: project_display_path(value, paths.project_root) for key, value in optional.items()
+        },
         "missing_required_tables": missing_required,
         "all_table_files": all_tables,
         "registry_table": "raw_gtfs_file_registry",
@@ -122,8 +126,8 @@ def ingest_gtfs_registry(connection: Any, run_id: str, ingested_at: str) -> dict
                 "ingested_at": ingested_at,
                 "source_dataset": "gtfs_static",
                 "gtfs_table_name": table_name,
-                "source_path": path.resolve().as_posix(),
-                "source_rel_path": relative_posix(path, paths.workspace_root),
+                "source_path": project_display_path(path, paths.project_root),
+                "source_rel_path": project_display_path(path, paths.project_root),
                 "file_name": path.name,
                 "file_extension": path.suffix.lower(),
                 "file_size_bytes": stat.st_size,
@@ -184,12 +188,16 @@ def ingest_gtfs_registry(connection: Any, run_id: str, ingested_at: str) -> dict
         "source_name": "gtfs",
         "source_root": discovered["source_root"],
         "registry_table": registry_table,
-        "registry_csv_path": registry_csv_path.resolve().as_posix(),
+        "registry_csv_path": project_display_path(registry_csv_path, paths.project_root),
         "required_files": discovered["required_files"],
         "optional_files": discovered["optional_files"],
         "missing_required_tables": discovered["missing_required_tables"],
-        "table_files": {table: path.as_posix() for table, path in all_table_files.items()},
+        "table_files": {
+            table: project_display_path(path, paths.project_root) for table, path in all_table_files.items()
+        },
         "discovered_files": len(all_table_files),
         "appended_registry_rows": appended_rows,
         "registry_table_row_count": table_row_count,
     }
+
+

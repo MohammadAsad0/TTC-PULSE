@@ -129,6 +129,62 @@ def relative_posix(path: Path, root: Path) -> str:
         return path.resolve().as_posix()
 
 
+def project_display_path(path: Path | str, project_root: Path | None = None) -> str:
+    """Return a non-absolute, repo-anchored path like TTC-PULSE/<...>."""
+    raw = str(path or "").strip()
+    if not raw:
+        return ""
+
+    resolved_project_root = project_root or resolve_project_paths().project_root
+    repo_name = resolved_project_root.name
+
+    candidate = Path(raw)
+    if not candidate.is_absolute():
+        normalized = candidate.as_posix().lstrip("./")
+        if normalized.startswith(f"{repo_name}/"):
+            return normalized
+        if normalized:
+            return f"{repo_name}/{normalized}"
+        return repo_name
+
+    resolved = candidate.resolve()
+    try:
+        rel_project = resolved.relative_to(resolved_project_root.resolve()).as_posix()
+        return f"{repo_name}/{rel_project}" if rel_project else repo_name
+    except ValueError:
+        pass
+
+    try:
+        rel_parent = resolved.relative_to(resolved_project_root.parent.resolve()).as_posix()
+        return f"{repo_name}/../{rel_parent}"
+    except ValueError:
+        return f"{repo_name}/{resolved.name}"
+
+
+def resolve_project_display_path(path: Path | str, project_root: Path | None = None) -> Path:
+    """Resolve TTC-PULSE-prefixed display paths back to filesystem paths."""
+    raw = str(path or "").strip()
+    resolved_project_root = project_root or resolve_project_paths().project_root
+    repo_name = resolved_project_root.name
+    if not raw:
+        return resolved_project_root
+
+    candidate = Path(raw)
+    if candidate.is_absolute():
+        return candidate.resolve()
+
+    text = candidate.as_posix().lstrip("./")
+    prefix = f"{repo_name}/"
+    parent_prefix = f"{repo_name}/../"
+    if text == repo_name:
+        return resolved_project_root.resolve()
+    if text.startswith(parent_prefix):
+        return (resolved_project_root.parent / text[len(parent_prefix):]).resolve()
+    if text.startswith(prefix):
+        return (resolved_project_root / text[len(prefix):]).resolve()
+    return (resolved_project_root / text).resolve()
+
+
 def file_checksum(path: Path, algorithm: str = "sha256") -> str:
     """Streaming checksum for file-level lineage."""
     digest = hashlib.new(algorithm)

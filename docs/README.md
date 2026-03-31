@@ -74,6 +74,13 @@ PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.alerts.parse_service_alerts
 ```
 
 Live poll (network enabled):
+Default poller feed:
+- `https://gtfsrt.ttc.ca/alerts/all?format=text`
+
+Live Alert page manual refresh feeds (mode-segmented table support):
+- `https://gtfsrt.ttc.ca/alerts/subway?format=text`
+- `https://gtfsrt.ttc.ca/alerts/bus?format=text`
+- `https://gtfsrt.ttc.ca/alerts/streetcar?format=text`
 
 ```bash
 PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.alerts.poll_service_alerts --allow-network --register-manifest

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import os
 import re
@@ -518,12 +518,12 @@ if "ai_chat_messages" not in st.session_state:
         }
     ]
 
-model_default = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
+model_name = (os.getenv("OPENAI_MODEL", "gpt-5.4-mini") or "gpt-5.4-mini").strip()
 api_key = os.getenv("OPENAI_API_KEY", "").strip()
 
-controls_left, controls_right = st.columns([5, 1], vertical_alignment="bottom")
-with controls_left:
-    model_name = st.text_input("OpenAI model", value=model_default, help="Example: gpt-5.4-mini or gpt-5.4")
+controls_spacer, controls_right = st.columns([6, 1], vertical_alignment="bottom")
+with controls_spacer:
+    st.empty()
 with controls_right:
     if st.button("Clear chat", use_container_width=True):
         st.session_state["ai_chat_messages"] = [
@@ -552,8 +552,6 @@ if question:
 
     if not api_key:
         answer = "OPENAI_API_KEY is not configured, so I cannot call the model yet."
-    elif not model_name.strip():
-        answer = "Model name is empty. Enter an OpenAI model such as gpt-5.4-mini."
     else:
         with st.spinner("Analyzing TTC dataset context..."):
             data_context = _build_dataset_context()
@@ -564,7 +562,7 @@ if question:
                 f"{question_context}"
             )
             try:
-                answer = _chat_with_openai(model_name.strip(), api_key, question, combined_context)
+                answer = _chat_with_openai(model_name, api_key, question, combined_context)
             except Exception as exc:  # pragma: no cover
                 answer = f"OpenAI request failed: {type(exc).__name__}: {exc}"
 

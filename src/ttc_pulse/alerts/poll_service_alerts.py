@@ -17,9 +17,9 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from ttc_pulse.alerts._sidecar_log import append_alert_sidecar_log_row
-from ttc_pulse.utils.project_setup import resolve_project_paths
+from ttc_pulse.utils.project_setup import project_display_path, resolve_project_paths, resolve_project_display_path
 
-DEFAULT_ALERTS_URL = "https://bustime.ttc.ca/gtfsrt/alerts"
+DEFAULT_ALERTS_URL = "https://gtfsrt.ttc.ca/alerts/all?format=text"
 POLL_INTERVAL_MINUTES = 30
 SNAPSHOT_EXTENSIONS = {".pb", ".bin"}
 
@@ -54,10 +54,7 @@ def _workspace_root(project_root: Path) -> Path:
 
 
 def _relative_posix(path: Path, root: Path) -> str:
-    try:
-        return path.resolve().relative_to(root.resolve()).as_posix()
-    except ValueError:
-        return path.resolve().as_posix()
+    return project_display_path(path, root)
 
 
 def _append_csv_rows(path: Path, fieldnames: list[str], rows: list[dict[str, Any]]) -> int:
@@ -180,7 +177,7 @@ def register_raw_snapshot_record(
     output_path_text = str(poll_result.get("output_path") or "")
     output_rel_path = ""
     if output_path_text:
-        output_rel_path = _relative_posix(Path(output_path_text), project_root)
+        output_rel_path = _relative_posix(resolve_project_display_path(output_path_text, project_root), project_root)
 
     row = {
         "run_id": poll_result.get("run_id", ""),
@@ -207,11 +204,11 @@ def register_raw_snapshot_record(
             f"Registered raw snapshot manifest row for "
             f"{row['output_rel_path'] or row['output_path'] or row['source_path'] or 'unknown'}."
         ),
-        artifact_path=resolved_manifest.as_posix(),
+        artifact_path=project_display_path(resolved_manifest, project_root),
         log_path=sidecar_log_path,
     )
     return {
-        "manifest_path": resolved_manifest.as_posix(),
+        "manifest_path": project_display_path(resolved_manifest, project_root),
         "appended_rows": appended_rows,
         "registered_status": row["status"],
     }
@@ -247,6 +244,7 @@ def run_poll_service_alerts(
     notes: list[str] = []
     source = ""
     source_path = ""
+    source_path_fs = ""
     payload: bytes | None = None
     content_type = ""
     http_status: int | None = None
@@ -264,7 +262,8 @@ def run_poll_service_alerts(
             status = "test_mode_no_fixture"
             notes.append("No fixture and no local snapshots available.")
         else:
-            source_path = candidate.as_posix()
+            source_path_fs = candidate.as_posix()
+            source_path = project_display_path(candidate, project_root)
             payload = candidate.read_bytes()
             status = "test_mode_loaded"
     elif allow_network:
@@ -286,6 +285,7 @@ def run_poll_service_alerts(
         notes.append("Network disabled by allow_network=False; no outbound request attempted.")
 
     output_path = ""
+    output_path_fs = ""
     checksum = ""
     payload_size = 0
     unchanged_vs_latest = False
@@ -294,7 +294,7 @@ def run_poll_service_alerts(
         checksum = _sha256_bytes(payload)
         inferred_extension = ".pb"
         if source_path:
-            source_suffix = Path(source_path).suffix.lower()
+            source_suffix = Path(source_path_fs).suffix.lower() if source_path_fs else Path(source_path).suffix.lower()
             if source_suffix in SNAPSHOT_EXTENSIONS:
                 inferred_extension = source_suffix
         snapshot_name = _build_snapshot_name(poll_time, inferred_extension)
@@ -311,7 +311,8 @@ def run_poll_service_alerts(
                     status = "no_change"
                     notes.append("No change vs latest raw snapshot; skipped snapshot write.")
             if not unchanged_vs_latest:
-                output_path = target_path.as_posix()
+                output_path_fs = target_path.as_posix()
+                output_path = project_display_path(target_path, project_root)
                 target_path.write_bytes(payload)
                 if test_mode:
                     status = "ok_test_mode"
@@ -334,7 +335,9 @@ def run_poll_service_alerts(
         "content_type": content_type,
         "source": source,
         "source_path": source_path,
+        "source_path_fs": source_path_fs,
         "output_path": output_path,
+        "output_path_fs": output_path_fs,
         "file_size_bytes": payload_size,
         "sha256": checksum,
         "unchanged_vs_latest": unchanged_vs_latest,
@@ -370,7 +373,7 @@ def run_poll_service_alerts(
             f"allow_network={allow_network}; dry_run={dry_run}; test_mode={test_mode}; "
             f"notes={result['notes'] or '-'}"
         ),
-        artifact_path=output_path or resolved_output_dir.as_posix(),
+        artifact_path=output_path or project_display_path(resolved_output_dir, project_root),
         log_path=sidecar_log_path,
     )
     return result

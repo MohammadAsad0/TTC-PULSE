@@ -16,15 +16,17 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from ttc_pulse.alerts._sidecar_log import append_alert_sidecar_log_row
-from ttc_pulse.utils.project_setup import append_csv_rows, resolve_project_paths
+from ttc_pulse.utils.project_setup import append_csv_rows, project_display_path, resolve_project_paths
 
 try:  # pragma: no cover - optional dependency
     from google.transit import gtfs_realtime_pb2  # type: ignore
+    from google.protobuf import text_format as protobuf_text_format  # type: ignore
 
     PROTOBUF_DECODE_AVAILABLE = True
     PROTOBUF_IMPORT_ERROR = ""
 except Exception as exc:  # pragma: no cover - environment dependent
     gtfs_realtime_pb2 = None  # type: ignore[assignment]
+    protobuf_text_format = None  # type: ignore[assignment]
     PROTOBUF_DECODE_AVAILABLE = False
     PROTOBUF_IMPORT_ERROR = f"{type(exc).__name__}: {exc}"
 
@@ -99,10 +101,7 @@ def _workspace_root(project_root: Path) -> Path:
 
 
 def _relative_posix(path: Path, root: Path) -> str:
-    try:
-        return path.resolve().relative_to(root.resolve()).as_posix()
-    except ValueError:
-        return path.resolve().as_posix()
+    return project_display_path(path, root)
 
 
 def _file_checksum(path: Path) -> str:
@@ -184,11 +183,12 @@ def discover_local_alert_snapshots(include_eda_snapshots: bool = True) -> list[P
 
 
 def _build_fallback_rows(snapshot_path: Path, caveat: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    project_root = _resolve_project_root()
     payload = snapshot_path.read_bytes()
     checksum = _file_checksum(snapshot_path)
     row = {
         "snapshot_file": snapshot_path.name,
-        "snapshot_path": snapshot_path.as_posix(),
+        "snapshot_path": project_display_path(snapshot_path, project_root),
         "snapshot_rel_path": "",
         "snapshot_ts_utc": _extract_snapshot_ts_from_name(snapshot_path),
         "feed_timestamp_utc": "",
@@ -231,13 +231,147 @@ def _build_fallback_rows(snapshot_path: Path, caveat: str) -> tuple[list[dict[st
     }
 
 
+def _parse_text_feed_fallback(snapshot_path: Path, caveat: str) -> tuple[list[dict[str, Any]], dict[str, Any]] | None:
+    project_root = _resolve_project_root()
+    payload = snapshot_path.read_bytes()
+    checksum = _file_checksum(snapshot_path)
+    try:
+        text_payload = payload.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+    if "alert" not in text_payload or "entity" not in text_payload:
+        return None
+
+    entity_chunks = [chunk for chunk in re.split(r"(?m)^entity\s*\{", text_payload) if chunk.strip()]
+    if not entity_chunks:
+        return None
+
+    rows: list[dict[str, Any]] = []
+    alert_entities = 0
+    for entity_index, chunk in enumerate(entity_chunks):
+        alert_match = re.search(r"\balert\s*\{", chunk)
+        if not alert_match:
+            continue
+        alert_entities += 1
+
+        entity_id_match = re.search(r"\bid:\s*\"([^\"]+)\"", chunk)
+        entity_id = entity_id_match.group(1) if entity_id_match else ""
+        cause_match = re.search(r"\bcause:\s*([A-Z_]+)", chunk)
+        effect_match = re.search(r"\beffect:\s*([A-Z_]+)", chunk)
+        header_match = re.search(r"header_text\s*\{[\s\S]*?text:\s*\"([^\"]*)\"", chunk)
+        description_match = re.search(r"description_text\s*\{[\s\S]*?text:\s*\"([^\"]*)\"", chunk)
+        active_start_match = re.search(r"active_period\s*\{[\s\S]*?start:\s*(\d+)", chunk)
+        active_end_match = re.search(r"active_period\s*\{[\s\S]*?end:\s*(\d+)", chunk)
+
+        cause = cause_match.group(1) if cause_match else "UNKNOWN_CAUSE"
+        effect = effect_match.group(1) if effect_match else "UNKNOWN_EFFECT"
+        header_text = header_match.group(1) if header_match else ""
+        description_text = description_match.group(1) if description_match else ""
+        active_start_utc = _epoch_to_iso(int(active_start_match.group(1))) if active_start_match else ""
+        active_end_utc = _epoch_to_iso(int(active_end_match.group(1))) if active_end_match else ""
+
+        informed_blocks = re.findall(r"informed_entity\s*\{([\s\S]*?)\}", chunk)
+        base = {
+            "snapshot_file": snapshot_path.name,
+            "snapshot_path": project_display_path(snapshot_path, project_root),
+            "snapshot_rel_path": "",
+            "snapshot_ts_utc": _extract_snapshot_ts_from_name(snapshot_path),
+            "feed_timestamp_utc": "",
+            "parse_mode": "text_fallback",
+            "parse_caveat": caveat,
+            "entity_index": entity_index,
+            "entity_id": entity_id,
+            "alert_id": entity_id,
+            "cause": cause,
+            "effect": effect,
+            "header_text": header_text,
+            "description_text": description_text,
+            "active_period_count": 1 if (active_start_utc or active_end_utc) else 0,
+            "active_start_utc": active_start_utc,
+            "active_end_utc": active_end_utc,
+            "binary_prefix_hex": payload[:16].hex(),
+            "source_bytes": len(payload),
+            "source_sha256": checksum,
+        }
+
+        if not informed_blocks:
+            rows.append(
+                {
+                    **base,
+                    "informed_entity_index": -1,
+                    "agency_id": "",
+                    "route_id": "",
+                    "route_type": "",
+                    "stop_id": "",
+                    "trip_id": "",
+                    "trip_route_id": "",
+                    "trip_start_date": "",
+                    "trip_start_time": "",
+                    "direction_id": "",
+                }
+            )
+            continue
+
+        for informed_idx, informed in enumerate(informed_blocks):
+            route_id_match = re.search(r"\broute_id:\s*\"([^\"]+)\"", informed)
+            stop_id_match = re.search(r"\bstop_id:\s*\"([^\"]+)\"", informed)
+            agency_match = re.search(r"\bagency_id:\s*\"([^\"]+)\"", informed)
+            route_type_match = re.search(r"\broute_type:\s*(\d+)", informed)
+            direction_match = re.search(r"\bdirection_id:\s*(\d+)", informed)
+            trip_id_match = re.search(r"\btrip_id:\s*\"([^\"]+)\"", informed)
+            trip_route_id_match = re.search(r"\btrip\s*\{[\s\S]*?route_id:\s*\"([^\"]+)\"", informed)
+            trip_start_date_match = re.search(r"\bstart_date:\s*\"([^\"]+)\"", informed)
+            trip_start_time_match = re.search(r"\bstart_time:\s*\"([^\"]+)\"", informed)
+
+            rows.append(
+                {
+                    **base,
+                    "informed_entity_index": informed_idx,
+                    "agency_id": agency_match.group(1) if agency_match else "",
+                    "route_id": route_id_match.group(1) if route_id_match else "",
+                    "route_type": route_type_match.group(1) if route_type_match else "",
+                    "stop_id": stop_id_match.group(1) if stop_id_match else "",
+                    "trip_id": trip_id_match.group(1) if trip_id_match else "",
+                    "trip_route_id": trip_route_id_match.group(1) if trip_route_id_match else "",
+                    "trip_start_date": trip_start_date_match.group(1) if trip_start_date_match else "",
+                    "trip_start_time": trip_start_time_match.group(1) if trip_start_time_match else "",
+                    "direction_id": direction_match.group(1) if direction_match else "",
+                }
+            )
+
+    if not rows:
+        return None
+
+    return rows, {
+        "parse_mode": "text_fallback",
+        "status": "ok_text_fallback",
+        "rows_emitted": len(rows),
+        "feed_entities": len(entity_chunks),
+        "alert_entities": alert_entities,
+        "feed_timestamp_utc": "",
+        "parse_caveat": caveat,
+        "source_bytes": len(payload),
+        "source_sha256": checksum,
+    }
+
+
 def _parse_snapshot_with_protobuf(snapshot_path: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     assert gtfs_realtime_pb2 is not None
+    project_root = _resolve_project_root()
     payload = snapshot_path.read_bytes()
     checksum = _file_checksum(snapshot_path)
 
     feed = gtfs_realtime_pb2.FeedMessage()
-    feed.ParseFromString(payload)
+    decode_mode = "protobuf"
+    try:
+        feed.ParseFromString(payload)
+    except Exception:
+        if protobuf_text_format is None:
+            raise
+        decoded_text = payload.decode("utf-8")
+        protobuf_text_format.Parse(decoded_text, feed)
+        decode_mode = "protobuf_text"
 
     feed_timestamp_utc = ""
     if feed.header.HasField("timestamp"):
@@ -272,11 +406,11 @@ def _parse_snapshot_with_protobuf(snapshot_path: Path) -> tuple[list[dict[str, A
 
         base = {
             "snapshot_file": snapshot_path.name,
-            "snapshot_path": snapshot_path.as_posix(),
+            "snapshot_path": project_display_path(snapshot_path, project_root),
             "snapshot_rel_path": "",
             "snapshot_ts_utc": _extract_snapshot_ts_from_name(snapshot_path),
             "feed_timestamp_utc": feed_timestamp_utc,
-            "parse_mode": "protobuf",
+            "parse_mode": decode_mode,
             "parse_caveat": "",
             "entity_index": entity_index,
             "entity_id": entity_id,
@@ -334,7 +468,7 @@ def _parse_snapshot_with_protobuf(snapshot_path: Path) -> tuple[list[dict[str, A
             )
 
     return rows, {
-        "parse_mode": "protobuf",
+        "parse_mode": decode_mode,
         "status": "ok",
         "rows_emitted": len(rows),
         "feed_entities": len(feed.entity),
@@ -414,22 +548,30 @@ def parse_local_service_alert_snapshots(
             continue
         snapshot_path = snapshot_path.resolve()
         snapshot_sha256 = _file_checksum(snapshot_path)
-        manifest_key = (snapshot_path.as_posix(), snapshot_sha256)
+        snapshot_display_path = project_display_path(snapshot_path, project_root)
+        manifest_key = (snapshot_display_path, snapshot_sha256)
         if append_outputs and manifest_key in existing_manifest_keys:
             skipped_existing_snapshots += 1
             continue
-
         try:
             if PROTOBUF_DECODE_AVAILABLE:
                 snapshot_rows, snapshot_meta = _parse_snapshot_with_protobuf(snapshot_path)
             else:
                 fallback_caveat = caveats[0] if caveats else FALLBACK_CAVEAT
-                snapshot_rows, snapshot_meta = _build_fallback_rows(snapshot_path, fallback_caveat)
+                text_parsed = _parse_text_feed_fallback(snapshot_path, fallback_caveat)
+                if text_parsed is not None:
+                    snapshot_rows, snapshot_meta = text_parsed
+                else:
+                    snapshot_rows, snapshot_meta = _build_fallback_rows(snapshot_path, fallback_caveat)
         except Exception as exc:
-            parse_caveat = f"Protobuf decode failed; fallback metadata emitted. Error: {type(exc).__name__}: {exc}"
+            parse_caveat = f"Protobuf decode failed; fallback parsing attempted. Error: {type(exc).__name__}: {exc}"
             if parse_caveat not in caveats:
                 caveats.append(parse_caveat)
-            snapshot_rows, snapshot_meta = _build_fallback_rows(snapshot_path, parse_caveat)
+            text_parsed = _parse_text_feed_fallback(snapshot_path, parse_caveat)
+            if text_parsed is not None:
+                snapshot_rows, snapshot_meta = text_parsed
+            else:
+                snapshot_rows, snapshot_meta = _build_fallback_rows(snapshot_path, parse_caveat)
 
         snapshot_rel_path = _relative_posix(snapshot_path, project_root)
         for row in snapshot_rows:
@@ -440,7 +582,7 @@ def parse_local_service_alert_snapshots(
             {
                 "parsed_at": _utc_iso(_utc_now()),
                 "snapshot_file": snapshot_path.name,
-                "snapshot_path": snapshot_path.as_posix(),
+                "snapshot_path": snapshot_display_path,
                 "snapshot_rel_path": snapshot_rel_path,
                 "snapshot_ts_utc": _extract_snapshot_ts_from_name(snapshot_path),
                 "feed_timestamp_utc": snapshot_meta.get("feed_timestamp_utc", ""),
@@ -485,7 +627,7 @@ def parse_local_service_alert_snapshots(
             f"parsed_snapshot_count={len(manifest_rows)}; skipped_existing={skipped_existing_snapshots}; "
             f"append_outputs={append_outputs}; caveats={' | '.join(caveats) if caveats else '-'}"
         ),
-        artifact_path=entities_csv.as_posix(),
+        artifact_path=project_display_path(entities_csv, project_root),
         log_path=log_path,
     )
 
@@ -504,9 +646,9 @@ def parse_local_service_alert_snapshots(
         "protobuf_decode_available": PROTOBUF_DECODE_AVAILABLE,
         "caveats": caveats,
         "outputs": {
-            "service_alert_entities_csv": entities_csv.as_posix(),
-            "parse_manifest_csv": manifest_csv.as_posix(),
-            "parse_summary_json": summary_json.as_posix(),
+            "service_alert_entities_csv": project_display_path(entities_csv, project_root),
+            "parse_manifest_csv": project_display_path(manifest_csv, project_root),
+            "parse_summary_json": project_display_path(summary_json, project_root),
         },
         "sidecar_log": log_entry,
     }

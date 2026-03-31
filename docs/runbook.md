@@ -130,6 +130,15 @@ PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.alerts.parse_service_alerts
 ```
 
 Offline/test-mode collection:
+Default poller endpoint:
+- `https://gtfsrt.ttc.ca/alerts/all?format=text`
+
+Live Alert page manual refresh endpoints:
+- `https://gtfsrt.ttc.ca/alerts/subway?format=text`
+- `https://gtfsrt.ttc.ca/alerts/bus?format=text`
+- `https://gtfsrt.ttc.ca/alerts/streetcar?format=text`
+- Parser supports both protobuf binary and protobuf text payloads for cause/effect/header extraction.
+
 
 ```bash
 PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.alerts.poll_service_alerts --test-mode --register-manifest
@@ -166,6 +175,7 @@ Verification:
 - Parser default is append/dedupe mode, so new snapshots are added without overwriting prior parsed history.
 - Use `--overwrite-outputs` on `ttc_pulse.alerts.parse_service_alerts` only for explicit full rebuilds.
 - Poller default is no-change aware and skips writing new raw/parsed artifacts when the latest payload hash is unchanged.
+- Manual refresh in the Streamlit Live Alert page is OS-agnostic (works on Windows, macOS, and Linux).
 - macOS scheduler logs are written to `logs/launchd_alerts_sidecar.out.log` and `logs/launchd_alerts_sidecar.err.log`.
 
 ## Validation Checklist

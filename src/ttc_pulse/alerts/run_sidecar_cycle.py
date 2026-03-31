@@ -17,7 +17,7 @@ from typing import Any
 from ttc_pulse.alerts._sidecar_log import append_alert_sidecar_log_row
 from ttc_pulse.alerts.parse_service_alerts import parse_local_service_alert_snapshots
 from ttc_pulse.alerts.poll_service_alerts import run_poll_service_alerts
-from ttc_pulse.utils.project_setup import resolve_project_paths
+from ttc_pulse.utils.project_setup import project_display_path, resolve_project_display_path, resolve_project_paths
 
 
 def _try_acquire_cycle_lock(lock_path: Path) -> tuple[bool, Any]:
@@ -50,11 +50,11 @@ def run_sidecar_cycle(
             status="skipped_lock_held",
             row_count=0,
             details="Previous side-car cycle still running; this cycle was skipped.",
-            artifact_path=lock_path.as_posix(),
+            artifact_path=project_display_path(lock_path, paths.project_root),
         )
         return {
             "status": "skipped_lock_held",
-            "lock_path": lock_path.as_posix(),
+            "lock_path": project_display_path(lock_path, paths.project_root),
             "sidecar_log": log_entry,
         }
 
@@ -66,10 +66,15 @@ def run_sidecar_cycle(
             register_manifest=True,
         )
         output_path = str(poll_result.get("output_path") or "").strip()
+        output_path_fs = str(poll_result.get("output_path_fs") or "").strip()
 
         parse_result: dict[str, Any] | None = None
-        if output_path:
-            snapshot_path = Path(output_path)
+        if output_path or output_path_fs:
+            snapshot_path = (
+                Path(output_path_fs).resolve()
+                if output_path_fs
+                else resolve_project_display_path(output_path, paths.project_root)
+            )
             if snapshot_path.exists():
                 parse_result = parse_local_service_alert_snapshots(
                     snapshot_paths=[snapshot_path],
@@ -87,7 +92,7 @@ def run_sidecar_cycle(
                 f"allow_network={allow_network}; dry_run={dry_run}; test_mode={test_mode}; "
                 f"poll_status={status}; parsed_snapshot={'yes' if parse_result else 'no'}"
             ),
-            artifact_path=output_path or lock_path.as_posix(),
+            artifact_path=output_path or project_display_path(lock_path, paths.project_root),
         )
         return {
             "status": cycle_status,

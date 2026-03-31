@@ -12,7 +12,7 @@ from ttc_pulse.utils.project_setup import (
     ensure_csv_header,
     file_checksum,
     load_yaml,
-    relative_posix,
+    project_display_path,
     resolve_project_paths,
 )
 
@@ -74,8 +74,8 @@ def discover_streetcar_files(config_path: Path | None = None) -> dict[str, Any]:
         suffixes=config.get("file_suffixes", [".csv"]),
     )
     return {
-        "config_path": schema_path.resolve().as_posix(),
-        "source_root": source_root.resolve().as_posix(),
+        "config_path": project_display_path(schema_path, paths.project_root),
+        "source_root": project_display_path(source_root, paths.project_root),
         "registry_table": str(config.get("raw_registry_table", "raw_streetcar_file_registry")),
         "files": [path.resolve() for path in files],
     }
@@ -104,8 +104,8 @@ def ingest_streetcar_registry(
                 "ingest_run_id": run_id,
                 "ingested_at": ingested_at,
                 "source_dataset": "streetcar_delay",
-                "source_path": path.resolve().as_posix(),
-                "source_rel_path": relative_posix(path, paths.workspace_root),
+                "source_path": project_display_path(path, paths.project_root),
+                "source_rel_path": project_display_path(path, paths.project_root),
                 "file_name": path.name,
                 "file_extension": path.suffix.lower(),
                 "file_size_bytes": stat.st_size,
@@ -165,10 +165,11 @@ def ingest_streetcar_registry(
         "source_root": discovered["source_root"],
         "config_path": discovered["config_path"],
         "registry_table": registry_table,
-        "registry_csv_path": registry_csv_path.resolve().as_posix(),
-        "files": [path.as_posix() for path in files],
+        "registry_csv_path": project_display_path(registry_csv_path, paths.project_root),
+        "files": [project_display_path(path, paths.project_root) for path in files],
         "discovered_files": len(files),
         "appended_registry_rows": appended_rows,
         "registry_table_row_count": table_row_count,
     }
+
 
