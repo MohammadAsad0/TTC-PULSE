@@ -6,18 +6,20 @@ TTC Pulse is a small Streamlit project that reads raw TTC bus, subway, and GTFS 
 
 ```text
 TTC-PULSE/
-|-- app/
-|   `-- streamlit_app.py
-|-- data/
-|   |-- bus/
-|   |-- subway/
-|   `-- gtfs/
-|-- docs/
-|-- logs/
-|-- outputs/
-|-- src/
-|   `-- ttc_pulse/
-`-- requirements.txt
+|-- datasets/
+|   |-- 01_gtfs_merged/
+|   |   |-- routes.txt
+|   |   |-- trips.txt
+|   |   |-- stop_times.txt
+|   |   |-- stops.txt
+|   |   |-- calendar.txt
+|   |   |-- calendar_dates.txt
+|   |   `-- shapes.txt
+|   |-- 02_bus_delay/
+|   |   `-- csv/
+|   `-- 03_subway_delay/
+|       `-- csv/
+`-- ttc_pulse/
 ```
 
 ## Raw Data Layout
@@ -31,26 +33,116 @@ data/
 `-- gtfs/     # static GTFS CSV files
 ```
 
-## Environment Setup
+Before launching Streamlit, create a `.env` file in the project root:
 
-PowerShell:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+```env
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-5.4-mini
 ```
 
-## Run The App
+Then run:
 
-PowerShell:
-
-```powershell
+```bash
+export PYTHONPATH=src
+python -m ttc_pulse.bronze.build_bronze_tables
+python -m ttc_pulse.gtfs.build_dimensions
+python -m ttc_pulse.gtfs.build_bridge
+python -m ttc_pulse.aliasing.build_route_alias
+python -m ttc_pulse.aliasing.build_station_alias
+python -m ttc_pulse.aliasing.build_incident_code_dim
+python -m ttc_pulse.aliasing.build_review_tables
+python -m ttc_pulse.normalization.normalize_bus
+python -m ttc_pulse.normalization.normalize_subway
+python -m ttc_pulse.normalization.normalize_gtfsrt_entities
+python -m ttc_pulse.facts.build_fact_delay_events_norm
+python -m ttc_pulse.facts.build_fact_gtfsrt_alerts_norm
+python -m ttc_pulse.normalization.register_step2_tables
+python -m ttc_pulse.marts.build_gold_rankings
 streamlit run app/streamlit_app.py
 ```
 
-The app bootstraps the local `src/` folder automatically, so `PYTHONPATH` does not need to be set.
+If the Gold parquet outputs are already present in the repo or your local copy, you can often skip directly to:
+
+```bash
+streamlit run app/streamlit_app.py
+```
+
+## Step-by-Step Execution
+
+### 1. Build Raw and Bronze
+
+```bash
+export PYTHONPATH=src
+python -m ttc_pulse.bronze.build_bronze_tables
+```
+
+This creates:
+- raw registries in `raw/`
+- Bronze parquet outputs in `bronze/`
+- source inventory and step summary docs
+- `data/ttc_pulse.duckdb`
+
+Important outputs:
+- `logs/ingestion_log.csv`
+- `docs/source_inventory.md`
+- `docs/step1_summary.md`
+
+### 2. Build Silver, Dimensions, Bridge, and Reviews
+
+Run in this order:
+
+```bash
+export PYTHONPATH=src
+python -m ttc_pulse.gtfs.build_dimensions
+python -m ttc_pulse.gtfs.build_bridge
+python -m ttc_pulse.aliasing.build_route_alias
+python -m ttc_pulse.aliasing.build_station_alias
+python -m ttc_pulse.aliasing.build_incident_code_dim
+python -m ttc_pulse.aliasing.build_review_tables
+python -m ttc_pulse.normalization.normalize_bus
+python -m ttc_pulse.normalization.normalize_subway
+python -m ttc_pulse.normalization.normalize_gtfsrt_entities
+python -m ttc_pulse.facts.build_fact_delay_events_norm
+python -m ttc_pulse.facts.build_fact_gtfsrt_alerts_norm
+python -m ttc_pulse.normalization.register_step2_tables
+```
+
+Important outputs:
+- `silver/*.parquet`
+- `dimensions/*.parquet`
+- `bridge/*.parquet`
+- `reviews/*.parquet`
+- `logs/step2_registration_log.csv`
+
+### 3. Build Gold Marts
+
+```bash
+export PYTHONPATH=src
+python -m ttc_pulse.marts.build_gold_rankings
+```
+
+This orchestrates the Gold build and writes:
+- `gold/gold_delay_events_core.parquet`
+- `gold/gold_linkage_quality.parquet`
+- `gold/gold_route_time_metrics.parquet`
+- `gold/gold_station_time_metrics.parquet`
+- `gold/gold_time_reliability.parquet`
+- `gold/gold_top_offender_ranking.parquet`
+- `gold/gold_alert_validation.parquet`
+- `gold/gold_spatial_hotspot.parquet`
+
+Important outputs:
+- `logs/step3_gold_build_log.csv`
+- `outputs/final_metrics_summary.md`
+
+### 4. Launch the Dashboard
+
+Make sure `.env` exists in the project root before this step (`OPENAI_API_KEY` and `OPENAI_MODEL`).
+
+```bash
+export PYTHONPATH=src
+streamlit run app/streamlit_app.py
+```
 
 Default local URL:
 
@@ -72,18 +164,56 @@ This prints:
 - date coverage for bus and subway
 - whether GTFS route and stop lookup tables were loaded
 
-## Dashboard Pages
+For more detail:
+- [Runbook](docs/runbook.md): operational steps to run, refresh, troubleshoot, and recover the pipelines/dashboard.
+- [Architecture](docs/architecture.md): system design, data flow across raw/bronze/silver/gold, and component responsibilities.
+- [Data Dictionary](docs/data_dictionary.md): table/column definitions, metric meanings, and key assumptions.
 
 - `Start Here`: landing page modeled after the shared mockup
 - `Dataset Explorer`: choose bus or subway, filter by service date range, and inspect cleaned row-level records
 - `Overview`: quick counts, date coverage, and route/station summaries
 
-## Cleaning Rules
+The current dashboard includes:
+- Reliability Overview
+- Bus Route Ranking
+- Subway Station Ranking
+- Weekday Hour Heatmap
+- Monthly Trends
+- Cause Category Mix
+- Live Alert Validation
+- Spatial Hotspot Map
+- Bus Reliability Drill-Down
+- Subway Reliability Drill-Down
+- AI-chat bot
 
-- Bus rows are dropped when the route field is missing, the date is missing, or the route resolves to `0`
-- Subway rows are dropped when line, station, or date is missing
-- Route, line, station, direction, incident code, and vehicle fields are standardized when present
-- Subway delay codes are enriched from `data/subway/ttc-subway-delay-codes__01_Sheet_1.csv`
-- Subway GTFS route IDs are inferred from the cleaned subway line value using static GTFS routes
+## AI Chat Bot
 
-More detail is documented in [docs/project_structure.md](docs/project_structure.md), [docs/raw_data_layout.md](docs/raw_data_layout.md), [docs/ingestion_flow.md](docs/ingestion_flow.md), and [docs/cleaning_rules.md](docs/cleaning_rules.md).
+A dashboard page named **AI-chat bot** is available from the app sidebar.
+
+### OpenAI setup
+
+1. Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+2. Create a `.env` file in the project root:
+
+```env
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-5.4-mini
+```
+
+### Recommended model
+
+- `gpt-5.4-mini` (recommended default): better cost/latency for interactive dashboard chat.
+- `gpt-5.4`: higher quality for deeper analysis and longer reasoning.
+
+The chatbot uses the loaded TTC dataset context (DuckDB/parquet Gold tables) to answer:
+- reliability pattern questions
+- practical data-driven mitigation ideas
+- forward-looking delay risk discussions (with explicit assumptions)
+
+
+

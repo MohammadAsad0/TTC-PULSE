@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import streamlit as st
 
@@ -20,3 +20,5 @@ with lead_right:
     st.page_link("pages/05_Drill_Down_Explorer.py", label="Drill-Down Explorer")
     st.page_link("pages/06_Live_Alert_Alignment.py", label="Live Alert Alignment")
     st.page_link("pages/07_Technical Appendix.py", label="Technical Appendix")
+    st.page_link("pages/08_AI_Chat_Bot.py", label="AI-chat bot")
+

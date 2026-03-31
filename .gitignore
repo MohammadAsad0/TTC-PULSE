@@ -3,6 +3,7 @@ cat > .gitignore << 'EOF'
 # Virtual environment
 .venv-ttc/
 .venv/
+.env
 
 # Python cache
 __pycache__/
@@ -24,8 +25,4 @@ EOF
 
 # Large data files
 *.duckdb
-
-
-data/
-
-
+*.csv

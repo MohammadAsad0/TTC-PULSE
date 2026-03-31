@@ -1,0 +1,179 @@
+run_id,logged_at,step,status,row_count,details
+20260317T194704Z,2026-03-17T19:47:04Z,ensure_duckdb,ok,1,duckdb=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/data/ttc_pulse.duckdb
+20260317T194704Z,2026-03-17T19:47:04Z,ingest_bus_registry,ok,100,files=100
+20260317T194704Z,2026-03-17T19:47:04Z,ingest_subway_registry,ok,61,files=61
+20260317T194704Z,2026-03-17T19:47:05Z,ingest_gtfs_registry,ok,7,files=7
+20260317T194704Z,2026-03-17T19:47:05Z,register_gtfsrt_snapshots,ok,2,files=2
+20260317T194704Z,2026-03-17T19:47:08Z,build_bronze_bus,ok,776435,row-preserving bus bronze with lineage
+20260317T194704Z,2026-03-17T19:47:10Z,build_bronze_subway,ok,250558,row-preserving subway bronze with lineage
+20260317T194704Z,2026-03-17T19:47:10Z,build_bronze_gtfs_routes,ok,229,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/routes.txt
+20260317T194704Z,2026-03-17T19:47:11Z,build_bronze_gtfs_trips,ok,133665,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/trips.txt
+20260317T194704Z,2026-03-17T19:47:23Z,build_bronze_gtfs_stop_times,ok,4249149,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/stop_times.txt
+20260317T194704Z,2026-03-17T19:47:23Z,build_bronze_gtfs_stops,ok,9417,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/stops.txt
+20260317T194704Z,2026-03-17T19:47:23Z,build_bronze_gtfs_calendar,ok,8,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/calendar.txt
+20260317T194704Z,2026-03-17T19:47:23Z,build_bronze_gtfs_calendar_dates,ok,7,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/calendar_dates.txt
+20260317T194704Z,2026-03-17T19:47:25Z,build_bronze_gtfs_shapes,ok,1025672,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/shapes.txt
+20260317T194704Z,2026-03-17T19:47:25Z,build_gtfsrt_shell_tables,ok,0,snapshots found; shell tables created pending parser implementation
+20260317T194704Z,2026-03-17T19:47:25Z,write_docs,ok,2,source_inventory.md and step1_summary.md updated
+20260324T025223Z,2026-03-24T02:52:23Z,ensure_duckdb,ok,1,duckdb=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/data/ttc_pulse.duckdb
+20260324T025223Z,2026-03-24T02:52:25Z,ingest_bus_registry,ok,100,files=100
+20260324T025223Z,2026-03-24T02:52:25Z,ingest_subway_registry,ok,61,files=61
+20260324T025223Z,2026-03-24T02:52:26Z,ingest_gtfs_registry,ok,7,files=7
+20260324T025223Z,2026-03-24T02:52:26Z,register_gtfsrt_snapshots,ok,46,files=46
+20260324T025223Z,2026-03-24T02:52:37Z,build_bronze_bus,ok,776435,row-preserving bus bronze with lineage
+20260324T025223Z,2026-03-24T02:52:43Z,build_bronze_subway,ok,250558,row-preserving subway bronze with lineage
+20260324T025223Z,2026-03-24T02:52:43Z,build_bronze_gtfs_routes,ok,229,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/csv/routes.csv
+20260324T025223Z,2026-03-24T02:52:44Z,build_bronze_gtfs_trips,ok,133665,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/csv/trips.csv
+20260324T025223Z,2026-03-24T02:53:25Z,build_bronze_gtfs_stop_times,ok,4249149,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/csv/stop_times.csv
+20260324T025223Z,2026-03-24T02:53:25Z,build_bronze_gtfs_stops,ok,9417,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/csv/stops.csv
+20260324T025223Z,2026-03-24T02:53:25Z,build_bronze_gtfs_calendar,ok,8,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/csv/calendar.csv
+20260324T025223Z,2026-03-24T02:53:25Z,build_bronze_gtfs_calendar_dates,ok,7,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/csv/calendar_dates.csv
+20260324T025223Z,2026-03-24T02:53:33Z,build_bronze_gtfs_shapes,ok,1025672,source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/datasets/01_gtfs_merged/csv/shapes.csv
+20260324T025223Z,2026-03-24T02:53:33Z,load_gtfsrt_parsed_into_bronze,ok,2232,status=loaded; parsed_rows=2232; source=/Users/om-college/Work/2 Canada/York/Winter26/DataViz/Project/ttc_pulse/alerts/parsed/service_alert_entities.csv
+20260324T025223Z,2026-03-24T02:53:33Z,write_docs,ok,2,source_inventory.md and step1_summary.md updated
+20260326T165126Z,2026-03-26T16:51:26Z,ensure_duckdb,ok,1,duckdb=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/ttc_pulse.duckdb
+20260326T165126Z,2026-03-26T16:51:26Z,ingest_bus_registry,ok,0,files=0
+20260326T165126Z,2026-03-26T16:51:26Z,ingest_subway_registry,ok,0,files=0
+20260326T165126Z,2026-03-26T16:51:26Z,ingest_gtfs_registry,warning,0,files=0
+20260326T165126Z,2026-03-26T16:51:27Z,register_gtfsrt_snapshots,ok,85,files=85
+20260326T165126Z,2026-03-26T16:51:27Z,build_bronze_bus,ok,0,row-preserving bus bronze with lineage
+20260326T165126Z,2026-03-26T16:51:27Z,build_bronze_subway,ok,0,row-preserving subway bronze with lineage
+20260326T165126Z,2026-03-26T16:51:27Z,build_bronze_gtfs_routes,warning,0,source file not found; created empty shell table
+20260326T165126Z,2026-03-26T16:51:27Z,build_bronze_gtfs_trips,warning,0,source file not found; created empty shell table
+20260326T165126Z,2026-03-26T16:51:27Z,build_bronze_gtfs_stop_times,warning,0,source file not found; created empty shell table
+20260326T165126Z,2026-03-26T16:51:27Z,build_bronze_gtfs_stops,warning,0,source file not found; created empty shell table
+20260326T165126Z,2026-03-26T16:51:27Z,build_bronze_gtfs_calendar,warning,0,source file not found; created empty shell table
+20260326T165126Z,2026-03-26T16:51:27Z,build_bronze_gtfs_calendar_dates,warning,0,source file not found; created empty shell table
+20260326T165126Z,2026-03-26T16:51:27Z,build_bronze_gtfs_shapes,ok,0,source file not found; created empty shell table
+20260326T165126Z,2026-03-26T16:51:28Z,load_gtfsrt_parsed_into_bronze,ok,3252,status=loaded; parsed_rows=3252; source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/alerts/parsed/service_alert_entities.csv
+20260326T165126Z,2026-03-26T16:51:28Z,write_docs,ok,2,source_inventory.md and step1_summary.md updated
+20260326T165145Z,2026-03-26T16:51:45Z,ensure_duckdb,ok,1,duckdb=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/ttc_pulse.duckdb
+20260326T165145Z,2026-03-26T16:51:45Z,ingest_bus_registry,ok,0,files=0
+20260326T165145Z,2026-03-26T16:51:45Z,ingest_subway_registry,ok,0,files=0
+20260326T165145Z,2026-03-26T16:51:47Z,ingest_gtfs_registry,ok,7,files=7
+20260326T165145Z,2026-03-26T16:51:47Z,register_gtfsrt_snapshots,ok,85,files=85
+20260326T165145Z,2026-03-26T16:51:47Z,build_bronze_bus,ok,0,row-preserving bus bronze with lineage
+20260326T165145Z,2026-03-26T16:51:47Z,build_bronze_subway,ok,0,row-preserving subway bronze with lineage
+20260326T165145Z,2026-03-26T16:51:47Z,build_bronze_gtfs_routes,ok,229,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/routes.csv
+20260326T165145Z,2026-03-26T16:51:47Z,build_bronze_gtfs_trips,ok,133665,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/trips.csv
+20260326T165145Z,2026-03-26T16:52:03Z,build_bronze_gtfs_stop_times,ok,4249149,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/stop_times.csv
+20260326T165145Z,2026-03-26T16:52:03Z,build_bronze_gtfs_stops,ok,9417,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/stops.csv
+20260326T165145Z,2026-03-26T16:52:03Z,build_bronze_gtfs_calendar,ok,8,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/calendar.csv
+20260326T165145Z,2026-03-26T16:52:03Z,build_bronze_gtfs_calendar_dates,ok,7,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/calendar_dates.csv
+20260326T165145Z,2026-03-26T16:52:06Z,build_bronze_gtfs_shapes,ok,1025672,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/shapes.csv
+20260326T165145Z,2026-03-26T16:52:06Z,load_gtfsrt_parsed_into_bronze,ok,3252,status=loaded; parsed_rows=3252; source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/alerts/parsed/service_alert_entities.csv
+20260326T165145Z,2026-03-26T16:52:06Z,write_docs,ok,2,source_inventory.md and step1_summary.md updated
+20260326T165305Z,2026-03-26T16:53:05Z,ensure_duckdb,ok,1,duckdb=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/ttc_pulse.duckdb
+20260326T165305Z,2026-03-26T16:53:07Z,ingest_bus_registry,ok,100,files=100
+20260326T165305Z,2026-03-26T16:53:08Z,ingest_subway_registry,ok,61,files=61
+20260326T165305Z,2026-03-26T16:53:09Z,ingest_gtfs_registry,ok,7,files=7
+20260326T165305Z,2026-03-26T16:53:09Z,register_gtfsrt_snapshots,ok,85,files=85
+20260326T165305Z,2026-03-26T16:53:14Z,build_bronze_bus,ok,776435,row-preserving bus bronze with lineage
+20260326T165305Z,2026-03-26T16:53:17Z,build_bronze_subway,ok,250558,row-preserving subway bronze with lineage
+20260326T165305Z,2026-03-26T16:53:17Z,build_bronze_gtfs_routes,ok,229,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/routes.csv
+20260326T165305Z,2026-03-26T16:53:17Z,build_bronze_gtfs_trips,ok,133665,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/trips.csv
+20260326T165305Z,2026-03-26T16:53:37Z,build_bronze_gtfs_stop_times,ok,4249149,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/stop_times.csv
+20260326T165305Z,2026-03-26T16:53:37Z,build_bronze_gtfs_stops,ok,9417,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/stops.csv
+20260326T165305Z,2026-03-26T16:53:37Z,build_bronze_gtfs_calendar,ok,8,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/calendar.csv
+20260326T165305Z,2026-03-26T16:53:37Z,build_bronze_gtfs_calendar_dates,ok,7,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/calendar_dates.csv
+20260326T165305Z,2026-03-26T16:53:40Z,build_bronze_gtfs_shapes,ok,1025672,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/shapes.csv
+20260326T165305Z,2026-03-26T16:53:40Z,load_gtfsrt_parsed_into_bronze,ok,3252,status=loaded; parsed_rows=3252; source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/alerts/parsed/service_alert_entities.csv
+20260326T165305Z,2026-03-26T16:53:40Z,write_docs,ok,2,source_inventory.md and step1_summary.md updated
+20260326T165712Z,2026-03-26T16:57:12Z,ensure_duckdb,ok,1,duckdb=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/ttc_pulse.duckdb
+20260326T165712Z,2026-03-26T16:57:13Z,ingest_bus_registry,ok,100,files=100
+20260326T165712Z,2026-03-26T16:57:13Z,ingest_subway_registry,ok,61,files=61
+20260326T165712Z,2026-03-26T16:57:14Z,ingest_gtfs_registry,ok,7,files=7
+20260326T165712Z,2026-03-26T16:57:15Z,register_gtfsrt_snapshots,ok,85,files=85
+20260326T165712Z,2026-03-26T16:57:20Z,build_bronze_bus,ok,776435,row-preserving bus bronze with lineage
+20260326T165712Z,2026-03-26T16:57:22Z,build_bronze_subway,ok,250558,row-preserving subway bronze with lineage
+20260326T165712Z,2026-03-26T16:57:22Z,build_bronze_gtfs_routes,ok,229,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/routes.csv
+20260326T165712Z,2026-03-26T16:57:23Z,build_bronze_gtfs_trips,ok,133665,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/trips.csv
+20260326T165712Z,2026-03-26T16:57:41Z,build_bronze_gtfs_stop_times,ok,4249149,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/stop_times.csv
+20260326T165712Z,2026-03-26T16:57:41Z,build_bronze_gtfs_stops,ok,9417,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/stops.csv
+20260326T165712Z,2026-03-26T16:57:41Z,build_bronze_gtfs_calendar,ok,8,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/calendar.csv
+20260326T165712Z,2026-03-26T16:57:41Z,build_bronze_gtfs_calendar_dates,ok,7,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/calendar_dates.csv
+20260326T165712Z,2026-03-26T16:57:44Z,build_bronze_gtfs_shapes,ok,1025672,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/shapes.csv
+20260326T165712Z,2026-03-26T16:57:44Z,load_gtfsrt_parsed_into_bronze,ok,3252,status=loaded; parsed_rows=3252; source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/alerts/parsed/service_alert_entities.csv
+20260326T165712Z,2026-03-26T16:57:44Z,write_docs,ok,2,source_inventory.md and step1_summary.md updated
+20260326T170255Z,2026-03-26T17:02:55Z,ensure_duckdb,ok,1,duckdb=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/ttc_pulse.duckdb
+20260326T170255Z,2026-03-26T17:02:56Z,ingest_bus_registry,ok,100,files=100
+20260326T170255Z,2026-03-26T17:02:57Z,ingest_subway_registry,ok,61,files=61
+20260326T170255Z,2026-03-26T17:02:58Z,ingest_gtfs_registry,ok,7,files=7
+20260326T170255Z,2026-03-26T17:02:58Z,register_gtfsrt_snapshots,ok,85,files=85
+20260326T170255Z,2026-03-26T17:03:03Z,build_bronze_bus,ok,776435,row-preserving bus bronze with lineage
+20260326T170255Z,2026-03-26T17:03:05Z,build_bronze_subway,ok,250558,row-preserving subway bronze with lineage
+20260326T170255Z,2026-03-26T17:03:05Z,build_bronze_gtfs_routes,ok,229,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/routes.csv
+20260326T170255Z,2026-03-26T17:03:06Z,build_bronze_gtfs_trips,ok,133665,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/trips.csv
+20260326T170255Z,2026-03-26T17:03:24Z,build_bronze_gtfs_stop_times,ok,4249149,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/stop_times.csv
+20260326T170255Z,2026-03-26T17:03:24Z,build_bronze_gtfs_stops,ok,9417,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/stops.csv
+20260326T170255Z,2026-03-26T17:03:24Z,build_bronze_gtfs_calendar,ok,8,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/calendar.csv
+20260326T170255Z,2026-03-26T17:03:24Z,build_bronze_gtfs_calendar_dates,ok,7,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/calendar_dates.csv
+20260326T170255Z,2026-03-26T17:03:27Z,build_bronze_gtfs_shapes,ok,1025672,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/shapes.csv
+20260326T170255Z,2026-03-26T17:03:28Z,load_gtfsrt_parsed_into_bronze,ok,3252,status=loaded; parsed_rows=3252; source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/alerts/parsed/service_alert_entities.csv
+20260326T170255Z,2026-03-26T17:03:28Z,write_docs,ok,2,source_inventory.md and step1_summary.md updated
+20260326T170553Z,2026-03-26T17:05:54Z,ensure_duckdb,ok,1,duckdb=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/ttc_pulse.duckdb
+20260326T170553Z,2026-03-26T17:05:54Z,ingest_bus_registry,ok,100,files=100
+20260326T170553Z,2026-03-26T17:05:55Z,ingest_subway_registry,ok,61,files=61
+20260326T170553Z,2026-03-26T17:05:56Z,ingest_gtfs_registry,ok,7,files=7
+20260326T170553Z,2026-03-26T17:05:56Z,register_gtfsrt_snapshots,ok,85,files=85
+20260326T170553Z,2026-03-26T17:06:02Z,build_bronze_bus,ok,776435,row-preserving bus bronze with lineage
+20260326T170553Z,2026-03-26T17:06:05Z,build_bronze_subway,ok,250558,row-preserving subway bronze with lineage
+20260326T170553Z,2026-03-26T17:06:05Z,build_bronze_gtfs_routes,ok,229,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/routes.csv
+20260326T170553Z,2026-03-26T17:06:06Z,build_bronze_gtfs_trips,ok,133665,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/trips.csv
+20260326T170553Z,2026-03-26T17:06:25Z,build_bronze_gtfs_stop_times,ok,4249149,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/stop_times.csv
+20260326T170553Z,2026-03-26T17:06:25Z,build_bronze_gtfs_stops,ok,9417,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/stops.csv
+20260326T170553Z,2026-03-26T17:06:25Z,build_bronze_gtfs_calendar,ok,8,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/calendar.csv
+20260326T170553Z,2026-03-26T17:06:25Z,build_bronze_gtfs_calendar_dates,ok,7,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/calendar_dates.csv
+20260326T170553Z,2026-03-26T17:06:28Z,build_bronze_gtfs_shapes,ok,1025672,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/shapes.csv
+20260326T170553Z,2026-03-26T17:06:28Z,load_gtfsrt_parsed_into_bronze,ok,3252,status=loaded; parsed_rows=3252; source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/alerts/parsed/service_alert_entities.csv
+20260326T170553Z,2026-03-26T17:06:28Z,write_docs,ok,2,source_inventory.md and step1_summary.md updated
+20260326T172239Z,2026-03-26T17:22:39Z,ensure_duckdb,ok,1,duckdb=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/ttc_pulse.duckdb
+20260326T172239Z,2026-03-26T17:22:40Z,ingest_bus_registry,ok,100,files=100
+20260326T172239Z,2026-03-26T17:22:40Z,ingest_subway_registry,ok,61,files=61
+20260326T172239Z,2026-03-26T17:22:41Z,ingest_gtfs_registry,ok,7,files=7
+20260326T172239Z,2026-03-26T17:22:42Z,register_gtfsrt_snapshots,ok,85,files=85
+20260326T172239Z,2026-03-26T17:22:48Z,build_bronze_bus,ok,776435,row-preserving bus bronze with lineage
+20260326T172239Z,2026-03-26T17:22:50Z,build_bronze_subway,ok,250558,row-preserving subway bronze with lineage
+20260326T172239Z,2026-03-26T17:22:50Z,build_bronze_gtfs_routes,ok,229,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/routes.csv
+20260326T172239Z,2026-03-26T17:22:51Z,build_bronze_gtfs_trips,ok,133665,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/trips.csv
+20260326T172239Z,2026-03-26T17:23:11Z,build_bronze_gtfs_stop_times,ok,4249149,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/stop_times.csv
+20260326T172239Z,2026-03-26T17:23:11Z,build_bronze_gtfs_stops,ok,9417,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/stops.csv
+20260326T172239Z,2026-03-26T17:23:11Z,build_bronze_gtfs_calendar,ok,8,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/calendar.csv
+20260326T172239Z,2026-03-26T17:23:11Z,build_bronze_gtfs_calendar_dates,ok,7,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/calendar_dates.csv
+20260326T172239Z,2026-03-26T17:23:15Z,build_bronze_gtfs_shapes,ok,1025672,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/shapes.csv
+20260326T172239Z,2026-03-26T17:23:15Z,load_gtfsrt_parsed_into_bronze,ok,3252,status=loaded; parsed_rows=3252; source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/alerts/parsed/service_alert_entities.csv
+20260326T172239Z,2026-03-26T17:23:15Z,write_docs,ok,2,source_inventory.md and step1_summary.md updated
+20260326T172850Z,2026-03-26T17:28:50Z,ensure_duckdb,ok,1,duckdb=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/ttc_pulse.duckdb
+20260326T172850Z,2026-03-26T17:28:52Z,ingest_bus_registry,ok,100,files=100
+20260326T172850Z,2026-03-26T17:28:53Z,ingest_subway_registry,ok,61,files=61
+20260326T172850Z,2026-03-26T17:28:54Z,ingest_gtfs_registry,ok,7,files=7
+20260326T172850Z,2026-03-26T17:28:54Z,register_gtfsrt_snapshots,ok,85,files=85
+20260326T172850Z,2026-03-26T17:28:59Z,build_bronze_bus,ok,776435,row-preserving bus bronze with lineage
+20260326T172850Z,2026-03-26T17:29:02Z,build_bronze_subway,ok,250558,row-preserving subway bronze with lineage
+20260326T172850Z,2026-03-26T17:29:02Z,build_bronze_gtfs_routes,ok,229,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/routes.csv
+20260326T172850Z,2026-03-26T17:29:02Z,build_bronze_gtfs_trips,ok,133665,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/trips.csv
+20260326T172850Z,2026-03-26T17:29:19Z,build_bronze_gtfs_stop_times,ok,4249149,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/stop_times.csv
+20260326T172850Z,2026-03-26T17:29:19Z,build_bronze_gtfs_stops,ok,9417,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/stops.csv
+20260326T172850Z,2026-03-26T17:29:19Z,build_bronze_gtfs_calendar,ok,8,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/calendar.csv
+20260326T172850Z,2026-03-26T17:29:19Z,build_bronze_gtfs_calendar_dates,ok,7,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/calendar_dates.csv
+20260326T172850Z,2026-03-26T17:29:22Z,build_bronze_gtfs_shapes,ok,1025672,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/shapes.csv
+20260326T172850Z,2026-03-26T17:29:22Z,load_gtfsrt_parsed_into_bronze,ok,3252,status=loaded; parsed_rows=3252; source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/alerts/parsed/service_alert_entities.csv
+20260326T172850Z,2026-03-26T17:29:22Z,write_docs,ok,2,source_inventory.md and step1_summary.md updated
+20260328T233308Z,2026-03-28T23:33:08Z,ensure_duckdb,ok,1,duckdb=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/ttc_pulse.duckdb
+20260328T233308Z,2026-03-28T23:33:12Z,ingest_bus_registry,ok,100,files=100
+20260328T233308Z,2026-03-28T23:33:13Z,ingest_streetcar_registry,ok,112,files=112
+20260328T233308Z,2026-03-28T23:33:14Z,ingest_subway_registry,ok,61,files=61
+20260328T233308Z,2026-03-28T23:33:15Z,ingest_gtfs_registry,ok,7,files=7
+20260328T233308Z,2026-03-28T23:33:15Z,register_gtfsrt_snapshots,ok,85,files=85
+20260328T233308Z,2026-03-28T23:33:20Z,build_bronze_bus,ok,776435,row-preserving bus bronze with lineage
+20260328T233308Z,2026-03-28T23:33:23Z,build_bronze_subway,ok,250558,row-preserving subway bronze with lineage
+20260328T233308Z,2026-03-28T23:33:25Z,build_bronze_streetcar,ok,170840,row-preserving streetcar bronze with lineage
+20260328T233308Z,2026-03-28T23:33:25Z,build_bronze_gtfs_routes,ok,229,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/routes.csv
+20260328T233308Z,2026-03-28T23:33:26Z,build_bronze_gtfs_trips,ok,133665,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/trips.csv
+20260328T233308Z,2026-03-28T23:33:42Z,build_bronze_gtfs_stop_times,ok,4249149,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/stop_times.csv
+20260328T233308Z,2026-03-28T23:33:42Z,build_bronze_gtfs_stops,ok,9417,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/stops.csv
+20260328T233308Z,2026-03-28T23:33:42Z,build_bronze_gtfs_calendar,ok,8,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/calendar.csv
+20260328T233308Z,2026-03-28T23:33:42Z,build_bronze_gtfs_calendar_dates,ok,7,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/calendar_dates.csv
+20260328T233308Z,2026-03-28T23:33:45Z,build_bronze_gtfs_shapes,ok,1025672,source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/gtfs/shapes.csv
+20260328T233308Z,2026-03-28T23:33:45Z,load_gtfsrt_parsed_into_bronze,ok,3252,status=loaded; parsed_rows=3252; source=D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/alerts/parsed/service_alert_entities.csv
+20260328T233308Z,2026-03-28T23:33:45Z,write_docs,ok,2,source_inventory.md and step1_summary.md updated

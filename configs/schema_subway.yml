@@ -1,0 +1,22 @@
+mode: subway
+source_root: data/subway
+include_patterns:
+  - "ttc-subway-delay-data-*.csv"
+  - "ttc-subway-delay-jan-2014-april-2017*.csv"
+  - "ttc-subway-delay-may-december-2017*.csv"
+  - "TTC Subway Delay Data since 2025.csv"
+exclude_patterns:
+  - "*Code Descriptions*.csv"
+  - "*code-descriptions*.csv"
+  - "*codes*.csv"
+  - "*readme*.csv"
+file_suffixes:
+  - ".csv"
+raw_registry_table: raw_subway_file_registry
+bronze_table: bronze_subway
+lineage_columns:
+  - source_file
+  - source_sheet
+  - source_row_id
+  - ingested_at
+  - row_hash

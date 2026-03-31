@@ -1,0 +1,17 @@
+mode: streetcar
+source_root: data/streetcar
+include_patterns:
+  - "*.csv"
+exclude_patterns:
+  - "*Code Descriptions*.csv"
+  - "*readme*.csv"
+file_suffixes:
+  - ".csv"
+raw_registry_table: raw_streetcar_file_registry
+bronze_table: bronze_streetcar
+lineage_columns:
+  - source_file
+  - source_sheet
+  - source_row_id
+  - ingested_at
+  - row_hash
