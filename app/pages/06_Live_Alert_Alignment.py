@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from pathlib import Path
+import os
 import sys
 
 import altair as alt
@@ -21,6 +23,9 @@ def _bootstrap_src_path() -> None:
 
 _bootstrap_src_path()
 
+from ttc_pulse.alerts._sidecar_log import append_alert_sidecar_log_row
+from ttc_pulse.alerts.parse_service_alerts import parse_local_service_alert_snapshots
+from ttc_pulse.alerts.poll_service_alerts import run_poll_service_alerts
 from ttc_pulse.dashboard.formatting import fmt_int, fmt_pct
 from ttc_pulse.dashboard.loaders import query_table
 from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector
@@ -29,6 +34,84 @@ from ttc_pulse.utils.project_setup import resolve_project_paths
 
 def _project_file(*parts: str) -> Path:
     return resolve_project_paths().project_root.joinpath(*parts)
+
+_DEFAULT_TTC_FEED_URLS = [
+    "https://gtfsrt.ttc.ca/service-alerts",
+    "https://gtfsrt.ttc.ca/alerts",
+    "https://bustime.ttc.ca/gtfsrt/alerts",
+]
+
+
+def _resolve_feed_urls() -> list[str]:
+    env_value = (os.getenv("TTC_GTFSRT_FEED_URLS") or os.getenv("TTC_GTFSRT_ALERT_FEED_URLS") or "").strip()
+    if not env_value:
+        return _DEFAULT_TTC_FEED_URLS
+
+    parts = [segment.strip() for segment in env_value.replace("\n", ",").split(",")]
+    urls = [url for url in parts if url]
+    return urls or _DEFAULT_TTC_FEED_URLS
+
+
+def _run_manual_alert_refresh() -> dict[str, object]:
+    feed_urls = _resolve_feed_urls()
+    base_ts = pd.Timestamp.utcnow().to_pydatetime()
+    poll_results: list[dict[str, object]] = []
+    written_snapshot_paths: list[Path] = []
+
+    for index, feed_url in enumerate(feed_urls):
+        poll_result = run_poll_service_alerts(
+            as_of=base_ts + timedelta(seconds=index),
+            feed_url=feed_url,
+            allow_network=True,
+            register_manifest=True,
+            skip_if_unchanged=False,
+        )
+        poll_results.append({
+            "feed_url": feed_url,
+            "status": str(poll_result.get("status") or "unknown"),
+            "http_status": poll_result.get("http_status"),
+            "notes": str(poll_result.get("notes") or "").strip(),
+        })
+
+        output_path_text = str(poll_result.get("output_path") or "").strip()
+        if output_path_text:
+            output_path = Path(output_path_text)
+            if output_path.exists():
+                written_snapshot_paths.append(output_path)
+
+    parse_rows = 0
+    parse_status = "skipped"
+    if written_snapshot_paths:
+        parse_result = parse_local_service_alert_snapshots(
+            snapshot_paths=written_snapshot_paths,
+            include_eda_snapshots=False,
+            append_outputs=True,
+        )
+        parse_rows = int(parse_result.get("rows_written", {}).get("service_alert_entities_csv", 0) or 0)
+        parse_status = str(parse_result.get("status") or "completed")
+
+    poll_statuses = {entry["status"] for entry in poll_results}
+    cycle_status = "ok" if ("ok" in poll_statuses or "no_change" in poll_statuses) else "warning"
+    cycle_log = append_alert_sidecar_log_row(
+        step="alerts_sidecar_cycle",
+        status=cycle_status,
+        row_count=parse_rows,
+        details=(
+            f"manual_refresh=yes; feeds={len(feed_urls)}; "
+            f"statuses={','.join(sorted(poll_statuses))}; parse_status={parse_status}"
+        ),
+        artifact_path=written_snapshot_paths[0].as_posix() if written_snapshot_paths else _project_file("alerts", "raw_snapshots").as_posix(),
+    )
+
+    return {
+        "feed_urls": feed_urls,
+        "poll_results": poll_results,
+        "snapshot_files_written": len(written_snapshot_paths),
+        "parse_rows": parse_rows,
+        "parse_status": parse_status,
+        "cycle_status": cycle_status,
+        "cycle_log": cycle_log,
+    }
 
 
 @st.cache_data(ttl=30)
@@ -159,6 +242,28 @@ def _load_route_universe_size() -> int:
     return int(result.frame.iloc[0]["route_count"])
 
 
+
+@st.cache_data(ttl=300)
+def _load_route_mode_lookup() -> dict[str, str]:
+    route_dim_path = _project_file("dimensions", "dim_route_gtfs.parquet")
+    if not route_dim_path.exists():
+        return {}
+
+    frame = pd.read_parquet(route_dim_path)
+    if frame.empty or "route_id" not in frame.columns:
+        return {}
+
+    if "route_mode" not in frame.columns:
+        return {}
+
+    frame = frame[["route_id", "route_mode"]].copy()
+    frame["route_id"] = frame["route_id"].astype("string").str.strip()
+    frame["route_mode"] = frame["route_mode"].astype("string").str.lower().str.strip()
+    frame = frame[frame["route_id"].notna() & (frame["route_id"] != "")]
+    frame = frame[frame["route_mode"].isin(["bus", "subway", "streetcar"])]
+    frame = frame.drop_duplicates(subset=["route_id"], keep="first")
+    return dict(zip(frame["route_id"].astype(str), frame["route_mode"].astype(str)))
+
 def _auto_refresh_every(minutes: int) -> None:
     delay_ms = max(1, minutes) * 60 * 1000
     components.html(
@@ -193,14 +298,39 @@ def _join_unique(values: pd.Series, limit: int = 4) -> str:
     return ", ".join(visible) + suffix
 
 
-def _latest_alerts_table(alerts_frame: pd.DataFrame, limit: int = 5) -> pd.DataFrame:
+def _latest_alerts_table(
+    alerts_frame: pd.DataFrame,
+    route_mode_lookup: dict[str, str],
+    limit: int = 5,
+    mode_filter: str = "all",
+) -> pd.DataFrame:
+    empty_cols = [
+        "captured_utc",
+        "mode",
+        "current_ttc_alert",
+        "details",
+        "affected_service",
+        "service_tag",
+        "effect",
+        "cause",
+    ]
     if alerts_frame.empty:
-        return pd.DataFrame(columns=["captured_utc", "current_ttc_alert", "details", "affected_service", "service_tag"])
+        return pd.DataFrame(columns=empty_cols)
 
     latest_snapshot_ts = alerts_frame["snapshot_ts_utc"].max()
     latest_snapshot = alerts_frame[alerts_frame["snapshot_ts_utc"] == latest_snapshot_ts].copy()
     if latest_snapshot.empty:
-        return pd.DataFrame(columns=["captured_utc", "current_ttc_alert", "details", "affected_service", "service_tag"])
+        return pd.DataFrame(columns=empty_cols)
+
+    latest_snapshot["route_id_norm"] = latest_snapshot["route_id"].astype("string").str.strip()
+    latest_snapshot["route_mode"] = latest_snapshot["route_id_norm"].map(route_mode_lookup)
+    latest_snapshot["route_mode"] = latest_snapshot["route_mode"].fillna("unknown")
+
+    selected_mode = str(mode_filter or "all").lower().strip()
+    if selected_mode != "all":
+        latest_snapshot = latest_snapshot[latest_snapshot["route_mode"] == selected_mode].copy()
+        if latest_snapshot.empty:
+            return pd.DataFrame(columns=empty_cols)
 
     latest_snapshot["alert_key"] = (
         latest_snapshot["alert_id"].fillna(latest_snapshot["header_text"]).fillna(latest_snapshot["description_text"])
@@ -215,6 +345,7 @@ def _latest_alerts_table(alerts_frame: pd.DataFrame, limit: int = 5) -> pd.DataF
     grouped = (
         latest_snapshot.groupby(["snapshot_ts_utc", "alert_key"], as_index=False)
         .agg(
+            mode=("route_mode", lambda s: _join_unique(s, limit=2)),
             current_ttc_alert=("header_text", "first"),
             details=("description_text", "first"),
             service_tag=("alert_scope", lambda s: _join_unique(s, limit=2)),
@@ -232,7 +363,8 @@ def _latest_alerts_table(alerts_frame: pd.DataFrame, limit: int = 5) -> pd.DataF
         lambda row: f"Routes: {row['affected_routes']} | Stops: {row['affected_stops']}",
         axis=1,
     )
-    return grouped[["captured_utc", "current_ttc_alert", "details", "affected_service", "service_tag", "effect", "cause"]]
+    grouped["mode"] = grouped["mode"].replace({"unknown": "Unspecified"})
+    return grouped[["captured_utc", "mode", "current_ttc_alert", "details", "affected_service", "service_tag", "effect", "cause"]]
 
 
 def _hit_rate_frame(
@@ -273,17 +405,57 @@ mode = story_mode_selector(sidebar=True, key="story_mode")
 presentation = is_presentation_mode(mode)
 
 if st.button("Refresh Alert Data", type="secondary"):
+    with st.spinner("Fetching latest TTC GTFS-RT feeds and parsing alerts..."):
+        try:
+            refresh_result = _run_manual_alert_refresh()
+        except Exception as exc:
+            st.session_state["live_alert_refresh_notice"] = (
+                "error",
+                f"Refresh failed: {type(exc).__name__}: {exc}",
+            )
+        else:
+            ok_count = sum(1 for row in refresh_result["poll_results"] if row["status"] in {"ok", "no_change"})
+            st.session_state["live_alert_refresh_notice"] = (
+                "success",
+                (
+                    f"Manual refresh completed. Successful/no-change feeds: {ok_count}/{len(refresh_result['poll_results'])}. "
+                    f"Snapshots written: {refresh_result['snapshot_files_written']}. "
+                    f"Parsed rows: {refresh_result['parse_rows']}."
+                ),
+            )
     _load_alert_archive.clear()
     _load_scheduler_cycles.clear()
     _load_hotspot_reference.clear()
     st.rerun()
+
 archive_frame = _load_alert_archive()
 cycle_frame = _load_scheduler_cycles()
 hotspot_frame = _load_hotspot_reference(top_k=50)
 route_universe_size = _load_route_universe_size()
+route_mode_lookup = _load_route_mode_lookup()
+
+refresh_notice = st.session_state.pop("live_alert_refresh_notice", None)
+if isinstance(refresh_notice, tuple) and len(refresh_notice) == 2:
+    notice_type, notice_message = refresh_notice
+    if notice_type == "error":
+        st.error(str(notice_message))
+    else:
+        st.success(str(notice_message))
 
 if archive_frame.empty:
-    st.info("No parsed live-alert archive is available yet. Start the scheduler or parse the latest GTFS-RT snapshots.")
+    if not cycle_frame.empty:
+        latest_cycle = cycle_frame.sort_values("logged_at").iloc[-1]
+        st.info(
+            "Latest scheduler capture: "
+            f"{latest_cycle['logged_at'].strftime('%Y-%m-%d %H:%M:%S %Z')} "
+            f"(status: {latest_cycle['status']}, parsed rows: {fmt_int(int(latest_cycle['row_count']))})."
+        )
+        st.warning(
+            "No parsed live-alert rows are currently available in alerts/parsed/service_alert_entities.csv. "
+            "The feed may have returned no alert entities or parsing produced no rows."
+        )
+    else:
+        st.info("No parsed live-alert archive is available yet. Start the scheduler or parse the latest GTFS-RT snapshots.")
     next_question_hint("Need technical caveats and data-quality diagnostics? Open: Technical Appendix.")
     st.stop()
 
@@ -299,14 +471,24 @@ archive_summary = (
     )
     .sort_values("snapshot_ts_utc")
 )
-latest_alerts_table = _latest_alerts_table(archive_frame, limit=5)
 
 total_captured_rows = int(len(archive_frame))
 snapshot_count = int(archive_summary["snapshot_ts_utc"].nunique())
 latest_capture_ts = archive_summary["snapshot_ts_utc"].max()
 latest_capture_rows = int(archive_summary.iloc[-1]["alert_rows"]) if not archive_summary.empty else 0
+latest_cycle_ts = cycle_frame["logged_at"].max() if not cycle_frame.empty else pd.NaT
+latest_cycle_rows = int(cycle_frame.sort_values("logged_at").iloc[-1]["row_count"]) if not cycle_frame.empty else 0
 route_linked_rows = int(archive_frame["route_id"].notna().sum())
 stop_linked_rows = int(archive_frame["stop_id"].notna().sum())
+
+latest_scheduler_ts = latest_capture_ts
+latest_scheduler_rows = latest_capture_rows
+if pd.isna(latest_scheduler_ts) and not pd.isna(latest_cycle_ts):
+    latest_scheduler_ts = latest_cycle_ts
+    latest_scheduler_rows = latest_cycle_rows
+elif not pd.isna(latest_cycle_ts) and not pd.isna(latest_scheduler_ts) and latest_cycle_ts > latest_scheduler_ts:
+    latest_scheduler_ts = latest_cycle_ts
+    latest_scheduler_rows = latest_cycle_rows
 
 validation_frame, hit_stats = _hit_rate_frame(archive_frame, hotspot_frame, route_universe_size)
 alert_scope_frame = _alert_scope_distribution_frame(archive_frame)
@@ -330,16 +512,45 @@ kpi_c.metric("Latest Capture Rows", fmt_int(latest_capture_rows))
 kpi_d.metric("Route Hit Rate", fmt_pct(hit_stats["hit_rate"]))
 kpi_e.metric("Lift vs Baseline", f"{hit_stats['lift']:.2f}x")
 
-if latest_capture_ts is not None and not pd.isna(latest_capture_ts):
+if latest_scheduler_ts is not None and not pd.isna(latest_scheduler_ts):
     st.info(
         "Latest scheduler capture: "
-        f"{latest_capture_ts.strftime('%Y-%m-%d %H:%M:%S %Z')} "
-        f"with {fmt_int(latest_capture_rows)} parsed alert rows."
+        f"{latest_scheduler_ts.strftime('%Y-%m-%d %H:%M:%S %Z')} "
+        f"with {fmt_int(latest_scheduler_rows)} parsed alert rows."
     )
     st.caption(f"Route-tagged rows: {fmt_int(route_linked_rows)} | Stop-tagged rows: {fmt_int(stop_linked_rows)}")
 
-if not latest_alerts_table.empty:
+alerts_header_col, alerts_mode_col, alerts_limit_col = st.columns([5, 2, 2], vertical_alignment="bottom")
+with alerts_header_col:
     st.subheader("Current TTC alerts")
+with alerts_mode_col:
+    selected_alert_mode = st.selectbox(
+        "Mode",
+        options=["all", "bus", "subway", "streetcar"],
+        index=0,
+        format_func=lambda value: "All" if value == "all" else str(value).title(),
+        key="live_alert_current_mode_filter",
+    )
+with alerts_limit_col:
+    selected_alert_limit = st.number_input(
+        "Rows",
+        min_value=1,
+        max_value=500,
+        value=5,
+        step=1,
+        key="live_alert_current_limit",
+    )
+
+latest_alerts_table = _latest_alerts_table(
+    archive_frame,
+    route_mode_lookup=route_mode_lookup,
+    limit=int(selected_alert_limit),
+    mode_filter=str(selected_alert_mode),
+)
+
+if latest_alerts_table.empty:
+    st.info("No current TTC alerts match the selected mode filter.")
+else:
     st.dataframe(latest_alerts_table, use_container_width=True, hide_index=True)
     st.caption("These are the most recent distinct TTC service alerts from the latest scheduler capture.")
 
