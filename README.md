@@ -88,6 +88,15 @@ Notes:
 
 If you want the full local build from raw data to dashboard:
 
+Before launching Streamlit, create a `.env` file in the project root:
+
+```env
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-5.4-mini
+```
+
+Then run:
+
 ```bash
 export PYTHONPATH=src
 python -m ttc_pulse.bronze.build_bronze_tables
@@ -183,6 +192,8 @@ Important outputs:
 
 ### 4. Launch the Dashboard
 
+Make sure `.env` exists in the project root before this step (`OPENAI_API_KEY` and `OPENAI_MODEL`).
+
 ```bash
 export PYTHONPATH=src
 streamlit run app/streamlit_app.py
@@ -240,9 +251,9 @@ Useful files to inspect after a run:
 ## Documentation
 
 For more detail:
-- [Runbook](docs/runbook.md)
-- [Architecture](docs/architecture.md)
-- [Data Dictionary](docs/data_dictionary.md)
+- [Runbook](docs/runbook.md): operational steps to run, refresh, troubleshoot, and recover the pipelines/dashboard.
+- [Architecture](docs/architecture.md): system design, data flow across raw/bronze/silver/gold, and component responsibilities.
+- [Data Dictionary](docs/data_dictionary.md): table/column definitions, metric meanings, and key assumptions.
 
 ## Current Dashboard Scope
 
@@ -261,7 +272,7 @@ The current dashboard includes:
 
 ## AI Chat Bot
 
-A new dashboard page is available under **Deep dive -> AI-chat bot**.
+A dashboard page named **AI-chat bot** is available from the app sidebar.
 
 ### OpenAI setup
 
@@ -278,7 +289,7 @@ OPENAI_API_KEY=your_openai_api_key_here
 OPENAI_MODEL=gpt-5.4-mini
 ```
 
-### Recommended models
+### Recommended model
 
 - `gpt-5.4-mini` (recommended default): better cost/latency for interactive dashboard chat.
 - `gpt-5.4`: higher quality for deeper analysis and longer reasoning.
