@@ -86,17 +86,11 @@ Live Alert page manual refresh feeds (mode-segmented table support):
 PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.alerts.poll_service_alerts --allow-network --register-manifest
 ```
 
-Install 30-minute scheduler (macOS launchd):
-
-```bash
-./scripts/alerts/install_launchd_scheduler.sh
-```
-
-Windows scheduler equivalent:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\alerts\install_windows_scheduler.ps1
-```
+In-app scheduler (OS-agnostic):
+- The Live Alert page starts an APScheduler `BackgroundScheduler` automatically.
+- Poll cadence is every 30 seconds.
+- Poll timeline is persisted to `logs/live_alert_poll_timeline.csv`.
+- Manual **Refresh Alert Data** triggers an immediate poll cycle.
 
 ## Dashboard Launch
 ```bash
@@ -111,9 +105,12 @@ Dashboard note:
 - Gold row counts: `outputs/final_metrics_summary.md`
 - Step logs: `logs/ingestion_log.csv`, `logs/step2_registration_log.csv`, `logs/step3_gold_build_log.csv`
 - Alerts side-car status: `logs/step3_alerts_sidecar_log.csv`
-- Scheduler logs (macOS): `logs/launchd_alerts_sidecar.out.log`, `logs/launchd_alerts_sidecar.err.log`
+- In-app poll timeline: `logs/live_alert_poll_timeline.csv`
 
 ## Known Runtime Caveats
 - `gold_alert_validation` can be empty when `fact_gtfsrt_alerts_norm` has no rows.
 - `gold_spatial_hotspot` is intentionally deferred when confidence gate fails.
 - If protobuf decoder dependency is missing, parsed alert outputs are fallback metadata rows only.
+
+
+

@@ -1,32 +1,30 @@
 {
   "append_outputs": true,
-  "caveats": [
-    "Protobuf decode failed; fallback parsing attempted. Error: ParseError: 238:5 : Message type \"transit_realtime.Alert\" has no field named \"image\"."
-  ],
+  "caveats": [],
   "outputs": {
     "parse_manifest_csv": "TTC-PULSE/alerts/parsed/parse_manifest.csv",
     "parse_summary_json": "TTC-PULSE/alerts/parsed/parse_summary.json",
     "service_alert_entities_csv": "TTC-PULSE/alerts/parsed/service_alert_entities.csv"
   },
-  "parsed_at": "2026-03-31T15:37:08Z",
-  "parsed_snapshot_count": 3,
+  "parsed_at": "2026-03-31T17:34:19Z",
+  "parsed_snapshot_count": 1,
   "protobuf_decode_available": true,
-  "rows_emitted": 97,
+  "rows_emitted": 8,
   "rows_written": {
-    "parse_manifest_csv": 3,
-    "service_alert_entities_csv": 97
+    "parse_manifest_csv": 1,
+    "service_alert_entities_csv": 8
   },
   "sample_rows_produced": true,
   "sidecar_log": {
     "appended_rows": 1,
     "artifact_path": "TTC-PULSE/alerts/parsed/service_alert_entities.csv",
-    "details": "snapshot_count=3; protobuf_decode_available=True; parsed_snapshot_count=3; skipped_existing=0; append_outputs=True; caveats=Protobuf decode failed; fallback parsing attempted. Error: ParseError: 238:5 : Message type \"transit_realtime.Alert\" has no field named \"image\".",
+    "details": "snapshot_count=1; protobuf_decode_available=True; parsed_snapshot_count=1; skipped_existing=0; append_outputs=True; caveats=-",
     "log_path": "D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/logs/step3_alerts_sidecar_log.csv",
-    "logged_at": "2026-03-31T15:37:08Z",
-    "row_count": 97,
-    "status": "ok_fallback",
+    "logged_at": "2026-03-31T17:34:19Z",
+    "row_count": 8,
+    "status": "ok",
     "step": "parse_service_alert_snapshots"
   },
   "skipped_existing_snapshots": 0,
-  "snapshot_count": 3
+  "snapshot_count": 1
 }

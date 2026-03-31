@@ -110,10 +110,10 @@ Default local URL:
 
 ## GTFS-RT Service Alerts
 
-Forward-only capture window:
-- Start date: `2026-03-17`
-- Cadence: every 30 minutes
+Live in-app capture:
+- Poll cadence: every 30 seconds (APScheduler `BackgroundScheduler` in Streamlit).
 - Side-car log: `logs/step3_alerts_sidecar_log.csv`
+- Poll timeline: `logs/live_alert_poll_timeline.csv`
 - Raw snapshot manifest: `alerts/raw_snapshots/manifest.csv`
 - Parsed output: `alerts/parsed/service_alert_entities.csv`
 
@@ -145,25 +145,10 @@ PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.alerts.poll_service_alerts -
 PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.alerts.parse_service_alerts
 ```
 
-Start persistent 30-minute scheduler (macOS launchd):
-
-```bash
-./scripts/alerts/install_launchd_scheduler.sh
-launchctl print gui/$(id -u)/com.ttcpulse.alerts.sidecar | head -n 30
-```
-
-Stop/remove scheduler (macOS launchd):
-
-```bash
-./scripts/alerts/uninstall_launchd_scheduler.sh
-```
-
-Windows Task Scheduler equivalent:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\alerts\install_windows_scheduler.ps1
-powershell -ExecutionPolicy Bypass -File .\scripts\alerts\uninstall_windows_scheduler.ps1
-```
+Scheduler operation:
+- OS-level launchd/Task Scheduler setup is no longer required for dashboard live polling.
+- Open the Streamlit **Live Alert Alignment** page to start APScheduler automatically.
+- Use **Refresh Alert Data** for an immediate on-demand cycle.
 
 Outputs:
 - `alerts/raw_snapshots/`
@@ -176,7 +161,7 @@ Verification:
 - Use `--overwrite-outputs` on `ttc_pulse.alerts.parse_service_alerts` only for explicit full rebuilds.
 - Poller default is no-change aware and skips writing new raw/parsed artifacts when the latest payload hash is unchanged.
 - Manual refresh in the Streamlit Live Alert page is OS-agnostic (works on Windows, macOS, and Linux).
-- macOS scheduler logs are written to `logs/launchd_alerts_sidecar.out.log` and `logs/launchd_alerts_sidecar.err.log`.
+- In-app poll history is persisted to `logs/live_alert_poll_timeline.csv`.
 
 ## Validation Checklist
 
@@ -193,3 +178,5 @@ Check these after a full run:
 - `gold_alert_validation` may be empty if GTFS-RT alerts were not collected and normalized.
 - `gold_spatial_hotspot` is confidence-gated.
 - Bus hotspot points are provisional route-centroid estimates in the current MVP.
+
+

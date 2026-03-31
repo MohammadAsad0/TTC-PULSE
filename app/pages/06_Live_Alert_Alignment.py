@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from datetime import timedelta
-from pathlib import Path
 import os
 import sys
+from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import altair as alt
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 
 
 def _bootstrap_src_path() -> None:
@@ -23,23 +22,19 @@ def _bootstrap_src_path() -> None:
 
 _bootstrap_src_path()
 
-from ttc_pulse.alerts._sidecar_log import append_alert_sidecar_log_row
-from ttc_pulse.alerts.parse_service_alerts import parse_local_service_alert_snapshots
-from ttc_pulse.alerts.poll_service_alerts import run_poll_service_alerts
+from ttc_pulse.alerts.live_alert_scheduler import DEFAULT_FEED_URLS, LiveAlertPollingManager
 from ttc_pulse.dashboard.formatting import fmt_int, fmt_pct
 from ttc_pulse.dashboard.loaders import query_table
 from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector
-from ttc_pulse.utils.project_setup import project_display_path, resolve_project_display_path, resolve_project_paths
+from ttc_pulse.utils.project_setup import resolve_project_paths
+
+
+_LOCAL_TZ = ZoneInfo("America/Toronto")
+_DEFAULT_TTC_FEED_URLS = [*DEFAULT_FEED_URLS]
 
 
 def _project_file(*parts: str) -> Path:
     return resolve_project_paths().project_root.joinpath(*parts)
-
-_DEFAULT_TTC_FEED_URLS = [
-    "https://gtfsrt.ttc.ca/alerts/subway?format=text",
-    "https://gtfsrt.ttc.ca/alerts/bus?format=text",
-    "https://gtfsrt.ttc.ca/alerts/streetcar?format=text",
-]
 
 
 def _resolve_feed_urls() -> list[str]:
@@ -52,81 +47,33 @@ def _resolve_feed_urls() -> list[str]:
     return urls or _DEFAULT_TTC_FEED_URLS
 
 
-def _run_manual_alert_refresh() -> dict[str, object]:
-    feed_urls = _resolve_feed_urls()
-    base_ts = pd.Timestamp.utcnow().to_pydatetime()
-    poll_results: list[dict[str, object]] = []
-    written_snapshot_paths: list[Path] = []
+@st.cache_resource
+def _get_live_polling_manager(feed_urls: tuple[str, ...]) -> LiveAlertPollingManager:
+    manager = LiveAlertPollingManager(feed_urls=feed_urls, poll_seconds=30)
+    manager.start()
+    return manager
 
-    project_root = resolve_project_paths().project_root
-    for index, feed_url in enumerate(feed_urls):
-        poll_result = run_poll_service_alerts(
-            as_of=base_ts + timedelta(seconds=index),
-            feed_url=feed_url,
-            allow_network=True,
-            register_manifest=True,
-            skip_if_unchanged=False,
-        )
-        poll_results.append(
-            {
-                "feed_url": feed_url,
-                "status": str(poll_result.get("status") or "unknown"),
-                "http_status": poll_result.get("http_status"),
-                "notes": str(poll_result.get("notes") or "").strip(),
-            }
-        )
 
-        output_path_text = str(poll_result.get("output_path") or "").strip()
-        output_path_fs_text = str(poll_result.get("output_path_fs") or "").strip()
-        if output_path_text:
-            output_path = (
-                Path(output_path_fs_text).resolve()
-                if output_path_fs_text
-                else resolve_project_display_path(output_path_text, project_root)
-            )
-            if output_path.exists():
-                written_snapshot_paths.append(output_path)
+def _sync_live_state_into_session(manager: LiveAlertPollingManager) -> None:
+    snapshot = manager.snapshot()
+    st.session_state["live_alert_runtime_current_alerts"] = snapshot.get("current_alerts", [])
+    st.session_state["live_alert_runtime_poll_timeline"] = snapshot.get("poll_timeline", [])
+    st.session_state["live_alert_runtime_new_alert_events"] = snapshot.get("new_alert_events", [])
+    st.session_state["live_alert_runtime_last_poll_utc"] = snapshot.get("last_poll_utc", "")
+    st.session_state["live_alert_runtime_last_error"] = snapshot.get("last_error", "")
 
-    parse_rows = 0
-    parse_status = "skipped"
-    if written_snapshot_paths:
-        parse_result = parse_local_service_alert_snapshots(
-            snapshot_paths=written_snapshot_paths,
-            include_eda_snapshots=False,
-            append_outputs=True,
-        )
-        parse_rows = int(parse_result.get("rows_written", {}).get("service_alert_entities_csv", 0) or 0)
-        parse_status = str(parse_result.get("status") or "completed")
 
-    poll_statuses = {entry["status"] for entry in poll_results}
-    cycle_status = "ok" if ("ok" in poll_statuses or "no_change" in poll_statuses) else "warning"
-    cycle_log = append_alert_sidecar_log_row(
-        step="alerts_sidecar_cycle",
-        status=cycle_status,
-        row_count=parse_rows,
-        details=(
-            f"manual_refresh=yes; feeds={len(feed_urls)}; "
-            f"statuses={','.join(sorted(poll_statuses))}; parse_status={parse_status}"
-        ),
-        artifact_path=(
-            project_display_path(written_snapshot_paths[0], project_root)
-            if written_snapshot_paths
-            else project_display_path(_project_file("alerts", "raw_snapshots"), project_root)
-        ),
-    )
+def _format_local_timestamp(value: pd.Timestamp | str | None) -> str:
+    if value is None:
+        return "N/A"
+    timestamp = pd.to_datetime(value, errors="coerce", utc=True)
+    if pd.isna(timestamp):
+        return "N/A"
+    return timestamp.tz_convert(_LOCAL_TZ).strftime("%Y-%m-%d %H:%M:%S %Z")
 
-    return {
-        "feed_urls": feed_urls,
-        "poll_results": poll_results,
-        "snapshot_files_written": len(written_snapshot_paths),
-        "parse_rows": parse_rows,
-        "parse_status": parse_status,
-        "cycle_status": cycle_status,
-        "cycle_log": cycle_log,
-    }
 
-@st.cache_data(ttl=30)
-def _load_alert_archive():
+@st.cache_data(ttl=5)
+def _load_alert_archive() -> pd.DataFrame:
     archive_path = _project_file("alerts", "parsed", "service_alert_entities.csv")
     if not archive_path.exists():
         return pd.DataFrame(
@@ -178,7 +125,10 @@ def _load_alert_archive():
             frame.loc[frame[column].isin(["", "nan", "None", "<NA>"]), column] = pd.NA
             if column in {"cause", "effect"}:
                 frame[column] = frame[column].str.upper()
-                frame.loc[frame[column].isin(["UNKNOWN_CAUSE", "UNKNOWN_EFFECT", "CAUSE_UNKNOWN", "EFFECT_UNKNOWN"]), column] = pd.NA
+                frame.loc[
+                    frame[column].isin(["UNKNOWN_CAUSE", "UNKNOWN_EFFECT", "CAUSE_UNKNOWN", "EFFECT_UNKNOWN"]),
+                    column,
+                ] = pd.NA
 
     has_route = frame["route_id"].notna() if "route_id" in frame.columns else pd.Series(False, index=frame.index)
     has_stop = frame["stop_id"].notna() if "stop_id" in frame.columns else pd.Series(False, index=frame.index)
@@ -190,27 +140,7 @@ def _load_alert_archive():
 
 
 @st.cache_data(ttl=30)
-def _load_scheduler_cycles() -> pd.DataFrame:
-    log_path = _project_file("logs", "step3_alerts_sidecar_log.csv")
-    if not log_path.exists():
-        return pd.DataFrame(columns=["logged_at", "row_count", "status"])
-
-    frame = pd.read_csv(log_path)
-    if frame.empty or "step" not in frame.columns:
-        return pd.DataFrame(columns=["logged_at", "row_count", "status"])
-
-    frame = frame[frame["step"] == "alerts_sidecar_cycle"].copy()
-    if frame.empty:
-        return pd.DataFrame(columns=["logged_at", "row_count", "status"])
-
-    frame["logged_at"] = pd.to_datetime(frame["logged_at"], errors="coerce", utc=True)
-    frame["row_count"] = pd.to_numeric(frame["row_count"], errors="coerce").fillna(0).astype(int)
-    frame = frame.dropna(subset=["logged_at"]).sort_values("logged_at")
-    return frame[["logged_at", "row_count", "status", "details"]].copy()
-
-
-@st.cache_data(ttl=30)
-def _load_hotspot_reference(top_k: int = 50):
+def _load_hotspot_reference(top_k: int = 50) -> pd.DataFrame:
     result = query_table(
         table_name="gold_top_offender_ranking",
         query_template="""
@@ -256,7 +186,6 @@ def _load_route_universe_size() -> int:
     return int(result.frame.iloc[0]["route_count"])
 
 
-
 @st.cache_data(ttl=300)
 def _load_route_mode_lookup() -> dict[str, str]:
     route_dim_path = _project_file("dimensions", "dim_route_gtfs.parquet")
@@ -264,10 +193,7 @@ def _load_route_mode_lookup() -> dict[str, str]:
         return {}
 
     frame = pd.read_parquet(route_dim_path)
-    if frame.empty or "route_id" not in frame.columns:
-        return {}
-
-    if "route_mode" not in frame.columns:
+    if frame.empty or "route_id" not in frame.columns or "route_mode" not in frame.columns:
         return {}
 
     frame = frame[["route_id", "route_mode"]].copy()
@@ -277,30 +203,6 @@ def _load_route_mode_lookup() -> dict[str, str]:
     frame = frame[frame["route_mode"].isin(["bus", "subway", "streetcar"])]
     frame = frame.drop_duplicates(subset=["route_id"], keep="first")
     return dict(zip(frame["route_id"].astype(str), frame["route_mode"].astype(str)))
-
-def _auto_refresh_every(minutes: int) -> None:
-    delay_ms = max(1, minutes) * 60 * 1000
-    components.html(
-        f"""
-        <script>
-        setTimeout(function() {{
-            window.parent.location.reload();
-        }}, {delay_ms});
-        </script>
-        """,
-        height=0,
-    )
-
-
-def _alert_scope_distribution_frame(alerts_frame: pd.DataFrame) -> pd.DataFrame:
-    if alerts_frame.empty:
-        return pd.DataFrame(columns=["alert_scope", "alert_count"])
-    return (
-        alerts_frame.groupby("alert_scope", as_index=False)
-        .size()
-        .rename(columns={"size": "alert_count"})
-        .sort_values("alert_count", ascending=False)
-    )
 
 
 def _join_unique(values: pd.Series, limit: int = 4) -> str:
@@ -312,14 +214,41 @@ def _join_unique(values: pd.Series, limit: int = 4) -> str:
     return ", ".join(visible) + suffix
 
 
-def _latest_alerts_table(
+def _alert_scope_distribution_frame(alerts_frame: pd.DataFrame) -> pd.DataFrame:
+    if alerts_frame.empty:
+        return pd.DataFrame(columns=["alert_scope", "alert_count"])
+
+    frame = (
+        alerts_frame.groupby("alert_scope", as_index=False)
+        .size()
+        .rename(columns={"size": "alert_count"})
+    )
+    allowed_scopes = [
+        "route-tagged alert",
+        "route + stop tagged alert",
+        "network-wide notice",
+    ]
+    frame = frame[frame["alert_scope"].isin(allowed_scopes)].copy()
+    if frame.empty:
+        frame = pd.DataFrame({"alert_scope": allowed_scopes, "alert_count": [0, 0, 0]})
+    else:
+        existing = set(frame["alert_scope"].tolist())
+        for scope in allowed_scopes:
+            if scope not in existing:
+                frame = pd.concat([frame, pd.DataFrame([{"alert_scope": scope, "alert_count": 0}])], ignore_index=True)
+    order = {scope: idx for idx, scope in enumerate(allowed_scopes)}
+    frame["scope_order"] = frame["alert_scope"].map(order).fillna(99).astype(int)
+    return frame.sort_values("scope_order").drop(columns=["scope_order"])
+
+
+def _latest_archive_alerts_table(
     alerts_frame: pd.DataFrame,
     route_mode_lookup: dict[str, str],
     limit: int = 5,
     mode_filter: str = "all",
 ) -> pd.DataFrame:
     empty_cols = [
-        "captured_utc",
+        "captured_local",
         "mode",
         "current_ttc_alert",
         "details",
@@ -371,14 +300,31 @@ def _latest_alerts_table(
         .sort_values(["snapshot_ts_utc", "current_ttc_alert"], ascending=[False, True])
         .head(limit)
     )
-    grouped["captured_utc"] = grouped["snapshot_ts_utc"].dt.strftime("%Y-%m-%d %H:%M:%S %Z")
+    grouped["captured_local"] = grouped["snapshot_ts_utc"].apply(_format_local_timestamp)
     grouped["details"] = grouped["details"].str.slice(0, 220)
     grouped["affected_service"] = grouped.apply(
         lambda row: f"Routes: {row['affected_routes']} | Stops: {row['affected_stops']}",
         axis=1,
     )
     grouped["mode"] = grouped["mode"].replace({"unknown": "Unspecified"})
-    return grouped[["captured_utc", "mode", "current_ttc_alert", "details", "affected_service", "service_tag", "effect", "cause"]]
+    return grouped[["captured_local", "mode", "current_ttc_alert", "details", "affected_service", "service_tag", "effect", "cause"]]
+
+
+def _runtime_poll_timeline_frame(poll_timeline: list[dict[str, object]]) -> pd.DataFrame:
+    if not poll_timeline:
+        return pd.DataFrame(columns=["polled_at_utc", "cumulative_distinct_alerts", "new_alert_count", "parse_rows", "status"])
+
+    frame = pd.DataFrame(poll_timeline)
+    if frame.empty:
+        return frame
+    frame["polled_at_utc"] = pd.to_datetime(frame["polled_at_utc"], errors="coerce", utc=True)
+    frame = frame.dropna(subset=["polled_at_utc"]).sort_values("polled_at_utc")
+    for col in ["total_alert_count", "new_alert_count", "parse_rows", "cumulative_distinct_alerts"]:
+        if col in frame.columns:
+            frame[col] = pd.to_numeric(frame[col], errors="coerce").fillna(0)
+    if "cumulative_distinct_alerts" not in frame.columns:
+        frame["cumulative_distinct_alerts"] = frame["total_alert_count"] if "total_alert_count" in frame.columns else 0
+    return frame
 
 
 def _hit_rate_frame(
@@ -411,65 +357,124 @@ def _hit_rate_frame(
     }
 
 
+@st.fragment(run_every="30s")
+def _render_live_updates(manager: LiveAlertPollingManager, route_mode_lookup: dict[str, str]) -> None:
+    _sync_live_state_into_session(manager)
+    runtime_error = str(st.session_state.get("live_alert_runtime_last_error") or "").strip()
+    if runtime_error:
+        st.warning(f"Latest scheduler poll warning: {runtime_error}")
+
+    archive_live = _load_alert_archive()
+    poll_timeline = list(st.session_state.get("live_alert_runtime_poll_timeline", []))
+    poll_timeline_frame = _runtime_poll_timeline_frame(poll_timeline)
+    archive_summary_live = (
+        archive_live.dropna(subset=["snapshot_ts_utc"])
+        .groupby("snapshot_ts_utc", as_index=False)
+        .agg(
+            alert_rows=("alert_id", "size"),
+            route_rows=("route_id", lambda s: int(s.notna().sum())),
+            stop_rows=("stop_id", lambda s: int(s.notna().sum())),
+        )
+        .sort_values("snapshot_ts_utc")
+    )
+
+    alerts_header_col, alerts_mode_col, alerts_limit_col = st.columns([5, 2, 2], vertical_alignment="bottom")
+    with alerts_header_col:
+        st.subheader("Current TTC alerts")
+    with alerts_mode_col:
+        selected_alert_mode = st.selectbox(
+            "Mode",
+            options=["all", "bus", "subway", "streetcar"],
+            index=0,
+            format_func=lambda value: "All" if value == "all" else str(value).title(),
+            key="live_alert_current_mode_filter",
+        )
+    with alerts_limit_col:
+        selected_alert_limit = st.number_input(
+            "Rows",
+            min_value=1,
+            max_value=500,
+            value=5,
+            step=1,
+            key="live_alert_current_limit",
+        )
+
+    latest_alerts_table = _latest_archive_alerts_table(
+        alerts_frame=archive_live,
+        route_mode_lookup=route_mode_lookup,
+        limit=int(selected_alert_limit),
+        mode_filter=str(selected_alert_mode),
+    )
+
+    if latest_alerts_table.empty:
+        st.info("No current TTC alerts match the selected mode filter.")
+    else:
+        st.dataframe(latest_alerts_table, width="stretch", hide_index=True)
+        st.caption("These are the most recent distinct TTC service alerts from the latest scheduler capture.")
+
+    if not archive_summary_live.empty:
+        timeline_chart = (
+            alt.Chart(archive_summary_live)
+            .mark_line(point=True)
+            .encode(
+                x=alt.X("snapshot_ts_utc:T", title="Capture Time"),
+                y=alt.Y("alert_rows:Q", title="Parsed Alert Rows"),
+                tooltip=[
+                    alt.Tooltip("snapshot_ts_utc:T", title="Capture Time"),
+                    alt.Tooltip("alert_rows:Q", title="Parsed Alert Rows"),
+                    alt.Tooltip("route_rows:Q", title="Route Rows"),
+                    alt.Tooltip("stop_rows:Q", title="Stop Rows"),
+                ],
+            )
+            .properties(title="Scheduler Capture Timeline", height=300)
+        )
+        st.altair_chart(timeline_chart, width="stretch")
+        st.caption("Each point is one scheduler cycle. A larger value means that cycle parsed more live alert entities.")
+
+
 st.title("Live Alert Alignment")
-st.caption("Use the scheduler archive to see what has been captured and whether it lands on historical hotspot routes.")
-_auto_refresh_every(30)
+st.caption("Live polling uses APScheduler every 30 seconds. Displayed times are shown in EDT/EST.")
 
 mode = story_mode_selector(sidebar=True, key="story_mode")
 presentation = is_presentation_mode(mode)
 
+manager = _get_live_polling_manager(tuple(_resolve_feed_urls()))
+_sync_live_state_into_session(manager)
+
 if st.button("Refresh Alert Data", type="secondary"):
-    with st.spinner("Fetching latest TTC GTFS-RT feeds and parsing alerts..."):
-        try:
-            refresh_result = _run_manual_alert_refresh()
-        except Exception as exc:
-            st.session_state["live_alert_refresh_notice"] = (
-                "error",
-                f"Refresh failed: {type(exc).__name__}: {exc}",
-            )
-        else:
-            ok_count = sum(1 for row in refresh_result["poll_results"] if row["status"] in {"ok", "no_change"})
-            st.session_state["live_alert_refresh_notice"] = (
-                "success",
-                (
-                    f"Manual refresh completed. Successful/no-change feeds: {ok_count}/{len(refresh_result['poll_results'])}. "
-                    f"Snapshots written: {refresh_result['snapshot_files_written']}. "
-                    f"Parsed rows: {refresh_result['parse_rows']}."
-                ),
-            )
+    with st.spinner("Running immediate live poll and parse..."):
+        refresh_result = manager.trigger_now()
+        st.session_state["live_alert_refresh_notice"] = refresh_result
     _load_alert_archive.clear()
-    _load_scheduler_cycles.clear()
     _load_hotspot_reference.clear()
     st.rerun()
 
+refresh_result = st.session_state.pop("live_alert_refresh_notice", None)
+if isinstance(refresh_result, dict):
+    if str(refresh_result.get("status") or "") == "error":
+        st.error(f"Refresh failed: {refresh_result.get('error', 'Unknown error')}")
+    else:
+        st.success(
+            "Manual refresh completed. "
+            f"New alerts: {fmt_int(int(refresh_result.get('new_alert_count', 0) or 0))}. "
+            f"Total current alerts: {fmt_int(int(refresh_result.get('total_alert_count', 0) or 0))}."
+        )
+
 archive_frame = _load_alert_archive()
-cycle_frame = _load_scheduler_cycles()
 hotspot_frame = _load_hotspot_reference(top_k=50)
 route_universe_size = _load_route_universe_size()
 route_mode_lookup = _load_route_mode_lookup()
-
-refresh_notice = st.session_state.pop("live_alert_refresh_notice", None)
-if isinstance(refresh_notice, tuple) and len(refresh_notice) == 2:
-    notice_type, notice_message = refresh_notice
-    if notice_type == "error":
-        st.error(str(notice_message))
-    else:
-        st.success(str(notice_message))
+runtime_alerts = list(st.session_state.get("live_alert_runtime_current_alerts", []))
 
 if archive_frame.empty:
-    if not cycle_frame.empty:
-        latest_cycle = cycle_frame.sort_values("logged_at").iloc[-1]
-        st.info(
-            "Latest scheduler capture: "
-            f"{latest_cycle['logged_at'].strftime('%Y-%m-%d %H:%M:%S %Z')} "
-            f"(status: {latest_cycle['status']}, parsed rows: {fmt_int(int(latest_cycle['row_count']))})."
-        )
-        st.warning(
-            "No parsed live-alert rows are currently available in alerts/parsed/service_alert_entities.csv. "
-            "The feed may have returned no alert entities or parsing produced no rows."
-        )
-    else:
-        st.info("No parsed live-alert archive is available yet. Start the scheduler or parse the latest GTFS-RT snapshots.")
+    last_poll_utc = str(st.session_state.get("live_alert_runtime_last_poll_utc") or "")
+    if last_poll_utc:
+        st.info(f"Latest scheduler capture: {_format_local_timestamp(last_poll_utc)}")
+    st.warning(
+        "No parsed live-alert archive rows are available yet in alerts/parsed/service_alert_entities.csv. "
+        "Polling is active; the feed may currently have no entities or parsing has not produced rows yet."
+    )
+    _render_live_updates(manager, route_mode_lookup)
     next_question_hint("Need technical caveats and data-quality diagnostics? Open: Technical Appendix.")
     st.stop()
 
@@ -490,19 +495,8 @@ total_captured_rows = int(len(archive_frame))
 snapshot_count = int(archive_summary["snapshot_ts_utc"].nunique())
 latest_capture_ts = archive_summary["snapshot_ts_utc"].max()
 latest_capture_rows = int(archive_summary.iloc[-1]["alert_rows"]) if not archive_summary.empty else 0
-latest_cycle_ts = cycle_frame["logged_at"].max() if not cycle_frame.empty else pd.NaT
-latest_cycle_rows = int(cycle_frame.sort_values("logged_at").iloc[-1]["row_count"]) if not cycle_frame.empty else 0
 route_linked_rows = int(archive_frame["route_id"].notna().sum())
 stop_linked_rows = int(archive_frame["stop_id"].notna().sum())
-
-latest_scheduler_ts = latest_capture_ts
-latest_scheduler_rows = latest_capture_rows
-if pd.isna(latest_scheduler_ts) and not pd.isna(latest_cycle_ts):
-    latest_scheduler_ts = latest_cycle_ts
-    latest_scheduler_rows = latest_cycle_rows
-elif not pd.isna(latest_cycle_ts) and not pd.isna(latest_scheduler_ts) and latest_cycle_ts > latest_scheduler_ts:
-    latest_scheduler_ts = latest_cycle_ts
-    latest_scheduler_rows = latest_cycle_rows
 
 validation_frame, hit_stats = _hit_rate_frame(archive_frame, hotspot_frame, route_universe_size)
 alert_scope_frame = _alert_scope_distribution_frame(archive_frame)
@@ -526,60 +520,22 @@ kpi_c.metric("Latest Capture Rows", fmt_int(latest_capture_rows))
 kpi_d.metric("Route Hit Rate", fmt_pct(hit_stats["hit_rate"]))
 kpi_e.metric("Lift vs Baseline", f"{hit_stats['lift']:.2f}x")
 
-if latest_scheduler_ts is not None and not pd.isna(latest_scheduler_ts):
+last_runtime_poll_utc = str(st.session_state.get("live_alert_runtime_last_poll_utc") or "")
+if last_runtime_poll_utc:
     st.info(
         "Latest scheduler capture: "
-        f"{latest_scheduler_ts.strftime('%Y-%m-%d %H:%M:%S %Z')} "
-        f"with {fmt_int(latest_scheduler_rows)} parsed alert rows."
+        f"{_format_local_timestamp(last_runtime_poll_utc)} "
+        f"with {fmt_int(len(runtime_alerts))} current distinct alerts."
     )
-    st.caption(f"Route-tagged rows: {fmt_int(route_linked_rows)} | Stop-tagged rows: {fmt_int(stop_linked_rows)}")
-
-alerts_header_col, alerts_mode_col, alerts_limit_col = st.columns([5, 2, 2], vertical_alignment="bottom")
-with alerts_header_col:
-    st.subheader("Current TTC alerts")
-with alerts_mode_col:
-    selected_alert_mode = st.selectbox(
-        "Mode",
-        options=["all", "bus", "subway", "streetcar"],
-        index=0,
-        format_func=lambda value: "All" if value == "all" else str(value).title(),
-        key="live_alert_current_mode_filter",
-    )
-with alerts_limit_col:
-    selected_alert_limit = st.number_input(
-        "Rows",
-        min_value=1,
-        max_value=500,
-        value=5,
-        step=1,
-        key="live_alert_current_limit",
-    )
-
-latest_alerts_table = _latest_alerts_table(
-    archive_frame,
-    route_mode_lookup=route_mode_lookup,
-    limit=int(selected_alert_limit),
-    mode_filter=str(selected_alert_mode),
-)
-
-if latest_alerts_table.empty:
-    st.info("No current TTC alerts match the selected mode filter.")
 else:
-    st.dataframe(latest_alerts_table, use_container_width=True, hide_index=True)
-    st.caption("These are the most recent distinct TTC service alerts from the latest scheduler capture.")
-
-timeline_chart = (
-    alt.Chart(archive_summary)
-    .mark_line(point=True)
-    .encode(
-        x=alt.X("snapshot_ts_utc:T", title="Capture Time"),
-        y=alt.Y("alert_rows:Q", title="Parsed Alert Rows"),
-        tooltip=["snapshot_ts_utc:T", "alert_rows:Q", "route_rows:Q", "stop_rows:Q"],
+    st.info(
+        "Latest scheduler capture: "
+        f"{_format_local_timestamp(latest_capture_ts)} "
+        f"with {fmt_int(latest_capture_rows)} parsed alert rows."
     )
-    .properties(title="Scheduler Capture Timeline", height=300)
-)
-st.altair_chart(timeline_chart, use_container_width=True)
-st.caption("Each point is one scheduler cycle. A larger value means that cycle parsed more live alert entities.")
+st.caption(f"Route-tagged rows: {fmt_int(route_linked_rows)} | Stop-tagged rows: {fmt_int(stop_linked_rows)}")
+
+_render_live_updates(manager, route_mode_lookup)
 
 if not alert_scope_frame.empty:
     scope_chart_height = max(260, len(alert_scope_frame.index) * 70)
@@ -594,8 +550,7 @@ if not alert_scope_frame.empty:
         )
         .properties(title="Which parts of the network are tagged in live alerts?", height=scope_chart_height)
     )
-    st.altair_chart(selector_chart, use_container_width=True)
-    st.caption("Route-tagged alerts can be matched directly to historical hotspot routes; stop-tagged alerts still provide live disruption context.")
+    st.altair_chart(selector_chart, width="stretch")
 
 if not validation_frame.empty:
     validation_chart = (
@@ -609,7 +564,7 @@ if not validation_frame.empty:
         )
         .properties(title="Historical hotspot baseline vs live hit rate", height=220)
     )
-    st.altair_chart(validation_chart, use_container_width=True)
+    st.altair_chart(validation_chart, width="stretch")
 
     st.caption(
         f"Route-tagged alerts: {fmt_int(hit_stats['route_alert_count'])} | "
@@ -622,7 +577,7 @@ if not validation_frame.empty:
     if not presentation:
         hotspot_display = hotspot_frame[["mode", "entity_id", "frequency", "composite_score", "rank_position"]].copy()
         hotspot_display = hotspot_display.rename(columns={"entity_id": "route_id"})
-        st.dataframe(hotspot_display.head(10), use_container_width=True, hide_index=True)
+        st.dataframe(hotspot_display.head(10), width="stretch", hide_index=True)
 
 if not presentation:
     with st.expander("How this validation works"):
@@ -633,6 +588,7 @@ if not presentation:
         )
 
 next_question_hint("Need technical caveats and data-quality diagnostics? Open: Technical Appendix.")
+
 
 
 
