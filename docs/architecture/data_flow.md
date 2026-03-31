@@ -35,10 +35,11 @@
 5. Refresh `gold_alert_validation`.
 
 Scheduler assets:
-- macOS active scheduler: `scripts/alerts/install_launchd_scheduler.sh` with runner `scripts/alerts/run_sidecar_cycle.sh`.
-- Windows equivalent scheduler: `scripts/alerts/install_windows_scheduler.ps1` with runner `scripts/alerts/run_sidecar_cycle.ps1`.
-- Shared cycle entry point: `src/ttc_pulse/alerts/run_sidecar_cycle.py` (lock-safe, poll + parse).
-- Airflow DAG files under `airflow/dags/` are retained as legacy reference only for this local-first architecture.
+- Active scheduler runtime: Streamlit Live Alert page initializes `APScheduler` (`BackgroundScheduler`) with a 30-second cadence.
+- Manual refresh: **Refresh Alert Data** runs an immediate on-demand poll/parse cycle.
+- Poll timeline persistence: `logs/live_alert_poll_timeline.csv`.
+- Side-car status log: `logs/step3_alerts_sidecar_log.csv`.
+- Airflow DAG files under `airflow/dags/` are retained only as historical reference and are not the active runtime scheduler.
 
 ## Lineage and Traceability Keys
 - Required lineage keys across normalized event data: `source_file`, `source_sheet`, `source_row_id`, `ingested_at`.

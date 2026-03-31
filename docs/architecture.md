@@ -3,7 +3,7 @@
 ## Stack Lock
 - Dashboard runtime: Streamlit.
 - Data platform: DuckDB + Parquet.
-- Scheduler scope: GTFS-RT Service Alerts side-car at 30-minute cadence (`launchd` on macOS, Windows Task Scheduler on Windows).
+- Scheduler scope: GTFS-RT Service Alerts live polling via Streamlit in-app APScheduler (`BackgroundScheduler`) at 30-second cadence.
 - Spark: excluded from MVP.
 
 ## Scope Lock

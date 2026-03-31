@@ -70,7 +70,7 @@
   - daily + monthly aggregates
 
 ## 7) Live Validation Layer (Alerts Only)
-- Poll GTFS-RT Service Alerts every 30 minutes.
+- Poll GTFS-RT Service Alerts every 30 seconds via in-app APScheduler.
 - Persist raw snapshot + flattened selectors.
 - Validate `route_id`/`stop_id` against static GTFS.
 - Trip-level validation deferred (selectors currently sparse/absent).

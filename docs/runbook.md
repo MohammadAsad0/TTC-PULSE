@@ -146,7 +146,7 @@ PYTHONPATH=src ../.venv-ttc/bin/python -m ttc_pulse.alerts.parse_service_alerts
 ```
 
 Scheduler operation:
-- OS-level launchd/Task Scheduler setup is no longer required for dashboard live polling.
+- External OS scheduler setup is not required for dashboard live polling.
 - Open the Streamlit **Live Alert Alignment** page to start APScheduler automatically.
 - Use **Refresh Alert Data** for an immediate on-demand cycle.
 

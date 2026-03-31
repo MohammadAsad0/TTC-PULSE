@@ -12,9 +12,9 @@ DD-002: Dashboard runtime
 - Consequence: Prioritizes transparent metric views over custom front-end complexity.
 
 DD-003: Scheduler scope (local-first side-car)
-- Decision: Use local OS-native schedulers for GTFS-RT Service Alerts side-car cadence (`launchd` on macOS, Windows Task Scheduler on Windows) at 30-minute intervals.
-- Rationale: Project is local-first and not moving to server-grade orchestration; Airflow runtime overhead is unnecessary for one recurring job.
-- Consequence: Side-car scheduling remains lightweight and portable across teammate operating systems while Silver/Gold historical materialization remains manual.
+- Decision: Use Streamlit in-app APScheduler (`BackgroundScheduler`) for GTFS-RT Service Alerts side-car cadence at 30-second intervals.
+- Rationale: The live alert dashboard needs near-real-time refresh and OS-agnostic operation without external scheduler setup.
+- Consequence: Polling starts with the Live Alert page runtime and supports immediate manual refresh without external scheduler setup.
 
 DD-004: Layering and traceability
 - Decision: Preserve Raw immutable, Bronze row-preserving with lineage, and retain unresolved mappings in Silver.

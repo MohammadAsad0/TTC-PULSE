@@ -20,7 +20,7 @@ Out of scope:
 ## Runtime Lock
 - Data engine: DuckDB (`data/ttc_pulse.duckdb`) with Parquet artifacts by layer.
 - Delivery runtime: Streamlit (`app/streamlit_app.py` + pages).
-- Scheduler boundary: local side-car cadence at 30 minutes (launchd on macOS, Windows Task Scheduler on Windows).
+- Scheduler boundary: in-app APScheduler (`BackgroundScheduler`) polling GTFS-RT alerts every 30 seconds.
 - Spark remains excluded.
 
 ## Layer Status
@@ -31,7 +31,7 @@ Out of scope:
 | Silver | Canonical dims/bridge/reviews/events/facts | Implemented as Parquet outputs and DuckDB-registrable tables |
 | Gold | Stakeholder marts for reliability and validation | Implemented as Parquet outputs with run logs |
 | Dashboard | Consumption of Gold marts | Streamlit storytelling-first pages: Story Overview, Recurring Hotspots, Time Patterns, Cause Signatures, Drill-Down Explorer, Live Alert Alignment, and QA/Methodology; prior V3 pages archived for rollback |
-| Scheduler | GTFS-RT side-car | Local schedulers are active (`launchd` on macOS; Windows Task Scheduler script for Windows); Airflow DAGs retained only as legacy reference |
+| Scheduler | GTFS-RT side-car | Streamlit Live Alert page starts APScheduler automatically (30-second poll cadence, OS-agnostic); manual refresh triggers immediate poll |
 
 ## Architecture Invariants
 - Raw and Bronze preserve traceability; unresolved mappings are retained, not dropped.

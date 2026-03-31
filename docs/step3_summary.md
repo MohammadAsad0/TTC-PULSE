@@ -12,7 +12,7 @@ Step 3 locks stakeholder-facing Gold documentation across marts, scoring policy,
 - Reliability framework is standardized to Frequency + Severity + Regularity + Cause Mix.
 - Composite reliability formula is documented with explainability controls.
 - Confidence gating now explicitly keeps spatial hotspot deferred until thresholds pass.
-- Airflow is documented as a 30-minute alerts side-car, not a full batch orchestrator.
+- Airflow remains legacy-only documentation; active alerts side-car polling runs via Streamlit APScheduler every 30 seconds.
 - Linkage quality guidance now includes stakeholder interpretation, not only metric definitions.
 
 ## Reliability Framework and Visibility Policy

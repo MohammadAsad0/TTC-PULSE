@@ -1,11 +1,11 @@
 # Airflow DAG (GTFS-RT Alerts Side-Car, Legacy Reference)
 
 ## Purpose
-Document the retained Airflow DAG contract as a legacy reference. Local runtime scheduling now uses OS-native schedulers (`launchd` on macOS and Windows Task Scheduler on Windows).
+Document retained Airflow DAG artifacts as legacy reference only. Active runtime scheduling is in-app APScheduler from the Streamlit Live Alert page (30-second cadence).
 
-## Legacy DAG Contract
+## Legacy DAG Contract (Not Active)
 - Primary DAG: `poll_gtfsrt_alerts` (`airflow/dags/poll_gtfsrt_alerts.py`).
-- Schedule: every 30 minutes (`*/30 * * * *`).
+- Schedule: historical artifact (`*/30 * * * *`) and not used by current app runtime.
 - Start date: `2026-03-17`.
 - Catchup: `False` (no historical backfill replay).
 - Feed scope: GTFS-RT Service Alerts only.
@@ -42,7 +42,7 @@ Document the retained Airflow DAG contract as a legacy reference. Local runtime 
 
 ## Backfill Policy
 - Historical GTFS-RT backfill before `2026-03-17` is not attempted by default.
-- Forward capture starts now and continues on the 30-minute schedule.
+- Forward capture in the active app runtime is driven by APScheduler at 30-second intervals.
 
 ## Legacy Scaffold
 - `airflow/dags/ttc_gtfsrt_alerts_pipeline.py` remains as a minimal scaffold artifact, is unscheduled (`schedule_interval=None`), and is not the active side-car flow.

@@ -1,42 +1,28 @@
-# Scheduler Operations (Active Local Runtime)
+# Scheduler Operations (Current Runtime)
 
 ## Active Strategy
-- Scheduler model: local OS-native recurring job.
-- Cadence: every 30 minutes.
-- Start window policy: forward-only from `2026-03-17`.
-- Write policy: raw/parsed files are only updated when payload changes.
+- Scheduler model: in-app APScheduler (`BackgroundScheduler`) started by the Streamlit **Live Alert Alignment** page.
+- Cadence: every 30 seconds.
+- Scope: GTFS-RT Service Alerts polling/parsing for subway, bus, and streetcar feeds.
+- Runtime behavior: OS-agnostic (Windows, macOS, Linux).
 
-## Shared Side-Car Cycle
-- Entry point: `src/ttc_pulse/alerts/run_sidecar_cycle.py`
-- Behavior:
-  - lock-safe cycle (skips overlapping runs),
-  - live poll,
-  - raw manifest registration when snapshot changes,
-  - parse only the produced snapshot in append/dedupe mode.
+## Polling Behavior
+- First scheduler run seeds current alerts and marks seen IDs.
+- Subsequent runs process only newly observed distinct alert IDs.
+- No new alerts: current alerts table remains unchanged.
+- New alerts found: current alerts table and scheduler timeline are updated.
 
-## macOS (launchd)
-- Install/start:
-  - `./scripts/alerts/install_launchd_scheduler.sh`
-- Uninstall/stop:
-  - `./scripts/alerts/uninstall_launchd_scheduler.sh`
-- Runner:
-  - `scripts/alerts/run_sidecar_cycle.sh`
-- Logs:
-  - `logs/launchd_alerts_sidecar.out.log`
-  - `logs/launchd_alerts_sidecar.err.log`
+## Manual Refresh
+- UI action: **Refresh Alert Data**.
+- Behavior: immediate on-demand poll/parse cycle in the same runtime path as scheduler polling.
 
-## Windows (Task Scheduler)
-- Install/start:
-  - `powershell -ExecutionPolicy Bypass -File .\scripts\alerts\install_windows_scheduler.ps1`
-- Uninstall/stop:
-  - `powershell -ExecutionPolicy Bypass -File .\scripts\alerts\uninstall_windows_scheduler.ps1`
-- Runner:
-  - `scripts/alerts/run_sidecar_cycle.ps1`
+## Persistence and Monitoring
+- Poll timeline history: `logs/live_alert_poll_timeline.csv`
+- Side-car operational log: `logs/step3_alerts_sidecar_log.csv`
+- Raw snapshot manifest: `alerts/raw_snapshots/manifest.csv`
+- Parsed alerts history: `alerts/parsed/service_alert_entities.csv`
+- Parsed manifest: `alerts/parsed/parse_manifest.csv`
 
-## Monitoring
-- Operational status CSV:
-  - `logs/step3_alerts_sidecar_log.csv`
-- Raw snapshot registry:
-  - `alerts/raw_snapshots/manifest.csv`
-- Parsed snapshot registry:
-  - `alerts/parsed/parse_manifest.csv`
+## Legacy Notes
+- External OS scheduler scripts are no longer the active polling mechanism.
+- Airflow scheduler artifacts are retained only as historical reference.
