@@ -1,0 +1,1204 @@
+from __future__ import annotations
+
+from datetime import date
+from pathlib import Path
+import sys
+from typing import Any
+
+import altair as alt
+import pandas as pd
+import streamlit as st
+
+
+def _bootstrap_src_path() -> None:
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        src_dir = parent / "src"
+        if (src_dir / "ttc_pulse").exists():
+            if str(src_dir) not in sys.path:
+                sys.path.insert(0, str(src_dir))
+            return
+
+
+_bootstrap_src_path()
+
+from ttc_pulse.dashboard.formatting import DAY_NAME_ORDER, fmt_float, fmt_int
+from ttc_pulse.dashboard.metric_config import METRIC_OPTIONS, resolve_metric_choice
+from ttc_pulse.dashboard.loaders import query_table
+
+
+STATE_ROUTE = "bus_drill_route_id"
+STATE_YEAR = "bus_drill_year"
+STATE_MONTH = "bus_drill_month"
+STATE_WEEKDAY = "bus_drill_weekday"
+STATE_DATE_WINDOW = "bus_drill_date_window"
+
+TIME_BIN_ORDER: list[tuple[int, str]] = [
+    (1, "Early morning (4-6)"),
+    (2, "Morning peak (7-9)"),
+    (3, "Post-peak morning (10-12)"),
+    (4, "Lunch time (13-14)"),
+    (5, "Post-lunch (15-16)"),
+    (6, "Evening peak (17-19)"),
+    (7, "Night (20-22)"),
+    (8, "Late night (23-1)"),
+    (9, "Overnight (2-3)"),
+]
+TIME_BIN_LABELS = [label for _, label in TIME_BIN_ORDER]
+TIME_BIN_ORDER_MAP = {label: order for order, label in TIME_BIN_ORDER}
+
+
+def _init_state() -> None:
+    for key in [STATE_ROUTE, STATE_YEAR, STATE_MONTH, STATE_WEEKDAY, STATE_DATE_WINDOW]:
+        if key not in st.session_state:
+            st.session_state[key] = None
+
+
+def _clear_from(level: str) -> None:
+    if level == "route":
+        st.session_state[STATE_YEAR] = None
+        st.session_state[STATE_MONTH] = None
+        st.session_state[STATE_WEEKDAY] = None
+    elif level == "year":
+        st.session_state[STATE_MONTH] = None
+        st.session_state[STATE_WEEKDAY] = None
+    elif level == "month":
+        pass
+    elif level == "weekday":
+        pass
+
+
+def _reset_all() -> None:
+    st.session_state[STATE_ROUTE] = None
+    st.session_state[STATE_YEAR] = None
+    st.session_state[STATE_MONTH] = None
+    st.session_state[STATE_WEEKDAY] = None
+
+
+def _step_back() -> None:
+    if st.session_state[STATE_WEEKDAY] is not None:
+        st.session_state[STATE_WEEKDAY] = None
+        return
+    if st.session_state[STATE_MONTH] is not None:
+        st.session_state[STATE_MONTH] = None
+        return
+    if st.session_state[STATE_YEAR] is not None:
+        st.session_state[STATE_YEAR] = None
+        return
+    if st.session_state[STATE_ROUTE] is not None:
+        st.session_state[STATE_ROUTE] = None
+
+
+def _normalize_scalar(value: Any) -> Any:
+    if isinstance(value, list):
+        if not value:
+            return None
+        return _normalize_scalar(value[0])
+    if isinstance(value, tuple):
+        if not value:
+            return None
+        return _normalize_scalar(value[0])
+    if isinstance(value, dict):
+        for key in ["value", "values", "datum", "items"]:
+            if key in value:
+                found = _normalize_scalar(value[key])
+                if found is not None:
+                    return found
+        return None
+    return value
+
+
+def _extract_field_from_event(node: Any, field_name: str) -> Any:
+    if node is None:
+        return None
+    if isinstance(node, dict):
+        if field_name in node:
+            return _normalize_scalar(node[field_name])
+        for value in node.values():
+            found = _extract_field_from_event(value, field_name)
+            if found is not None:
+                return found
+        return None
+    if isinstance(node, list):
+        for item in node:
+            found = _extract_field_from_event(item, field_name)
+            if found is not None:
+                return found
+        return None
+    return None
+
+
+def _extract_selection_value(event_state: Any, selection_name: str, field_name: str) -> Any:
+    if event_state is None:
+        return None
+    if isinstance(event_state, dict):
+        selection = event_state.get("selection")
+    else:
+        selection = getattr(event_state, "selection", None)
+    if selection is None:
+        return None
+    if isinstance(selection, dict):
+        payload = selection.get(selection_name)
+    else:
+        payload = getattr(selection, selection_name, None)
+    return _extract_field_from_event(payload, field_name)
+
+
+def _normalize_date_range(selection: object, min_date: date, max_date: date) -> tuple[date, date]:
+    if isinstance(selection, tuple) and len(selection) == 2:
+        start_date, end_date = selection
+    else:
+        start_date = end_date = selection if isinstance(selection, date) else min_date
+
+    if start_date is None:
+        start_date = min_date
+    if end_date is None:
+        end_date = max_date
+    if start_date > end_date:
+        start_date, end_date = end_date, start_date
+    return start_date, end_date
+
+
+def _is_composite_unstable(frame: pd.DataFrame, min_points: int = 8) -> bool:
+    if frame.empty or "composite_score" not in frame.columns:
+        return True
+    values = pd.to_numeric(frame["composite_score"], errors="coerce").dropna()
+    if len(values) < min_points:
+        return True
+    if values.nunique() <= 1:
+        return True
+    return False
+
+
+def _prepare_drill_metric_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    """Expose canonical metric aliases so selector mapping stays consistent."""
+    output = frame.copy()
+    if "incident_count" in output.columns and "frequency" not in output.columns:
+        output["frequency"] = output["incident_count"]
+    if "p90_delay" in output.columns and "severity_p90" not in output.columns:
+        output["severity_p90"] = output["p90_delay"]
+    if "p90_gap" in output.columns and "regularity_p90" not in output.columns:
+        output["regularity_p90"] = output["p90_gap"]
+    return output
+
+
+def _resolve_summary_metric(frame: pd.DataFrame, selected_metric_label: str) -> tuple[str, str, str | None]:
+    resolution = resolve_metric_choice(frame, selected_metric_label)
+    return resolution.resolved_column, resolution.resolved_label, resolution.message
+
+
+def _resolve_drill_metric(
+    frame: pd.DataFrame,
+    selected_metric_label: str,
+    composite_unstable: bool = False,
+) -> tuple[str, str | None]:
+    metric_frame = _prepare_drill_metric_frame(frame)
+
+    if selected_metric_label == "Composite Score" and composite_unstable:
+        for fallback_col in ["frequency", "severity_p90", "regularity_p90", "cause_mix_score"]:
+            if fallback_col in metric_frame.columns and pd.to_numeric(metric_frame[fallback_col], errors="coerce").notna().any():
+                return (
+                    fallback_col,
+                    "Composite is unstable at fine granularity for this slice. "
+                    f"Fallback metric is active: {fallback_col.replace('_', ' ').title()}.",
+                )
+
+    resolution = resolve_metric_choice(
+        metric_frame,
+        selected_metric_label,
+        extra_candidates=["frequency", "severity_p90", "regularity_p90", "cause_mix_score", "composite_score"],
+    )
+    return resolution.resolved_column, resolution.message
+
+
+@st.cache_data(ttl=180)
+def _load_route_coverage_window() -> Any:
+    return query_table(
+        table_name="gold_route_time_metrics",
+        query_template="""
+        SELECT
+            MIN(service_date) AS min_service_date,
+            MAX(service_date) AS max_service_date,
+            COUNT(DISTINCT EXTRACT(YEAR FROM service_date))::BIGINT AS years_covered,
+            COUNT(DISTINCT DATE_TRUNC('month', service_date))::BIGINT AS months_covered
+        FROM {source}
+        WHERE mode = 'bus'
+            AND route_id_gtfs IS NOT NULL
+            AND service_date IS NOT NULL
+        """,
+    )
+
+
+@st.cache_data(ttl=180)
+def _load_top_routes_full_history(start_date: str, end_date: str) -> Any:
+    return query_table(
+        table_name="gold_route_time_metrics",
+        query_template="""
+        WITH route_agg AS (
+            SELECT
+                route_id_gtfs AS route_id,
+                SUM(frequency)::DOUBLE AS frequency,
+                quantile_cont(severity_p90, 0.9) FILTER (WHERE severity_p90 IS NOT NULL) AS severity_p90,
+                quantile_cont(regularity_p90, 0.9) FILTER (WHERE regularity_p90 IS NOT NULL) AS regularity_p90,
+                AVG(cause_mix_score) FILTER (WHERE cause_mix_score IS NOT NULL) AS cause_mix_score
+            FROM {source}
+            WHERE mode = 'bus'
+                AND route_id_gtfs IS NOT NULL
+                AND service_date IS NOT NULL
+                AND service_date BETWEEN ? AND ?
+            GROUP BY 1
+        ),
+        scored AS (
+            SELECT
+                route_id,
+                frequency,
+                severity_p90,
+                regularity_p90,
+                COALESCE(cause_mix_score, 0.0) AS cause_mix_score,
+                (frequency - AVG(frequency) OVER()) / NULLIF(STDDEV_POP(frequency) OVER(), 0.0) AS z_freq,
+                (severity_p90 - AVG(severity_p90) OVER()) / NULLIF(STDDEV_POP(severity_p90) OVER(), 0.0) AS z_sev,
+                (regularity_p90 - AVG(regularity_p90) OVER()) / NULLIF(STDDEV_POP(regularity_p90) OVER(), 0.0) AS z_reg,
+                (COALESCE(cause_mix_score, 0.0) - AVG(COALESCE(cause_mix_score, 0.0)) OVER())
+                    / NULLIF(STDDEV_POP(COALESCE(cause_mix_score, 0.0)) OVER(), 0.0) AS z_cause
+            FROM route_agg
+        )
+        SELECT
+            route_id,
+            CAST(frequency AS BIGINT) AS total_incidents,
+            severity_p90,
+            regularity_p90,
+            cause_mix_score,
+            (
+                0.35 * COALESCE(z_freq, 0.0) +
+                0.30 * COALESCE(z_sev, 0.0) +
+                0.20 * COALESCE(z_reg, 0.0) +
+                0.15 * COALESCE(z_cause, 0.0)
+            ) AS composite_score,
+            RANK() OVER (
+                ORDER BY
+                    (
+                        0.35 * COALESCE(z_freq, 0.0) +
+                        0.30 * COALESCE(z_sev, 0.0) +
+                        0.20 * COALESCE(z_reg, 0.0) +
+                        0.15 * COALESCE(z_cause, 0.0)
+                    ) DESC,
+                    frequency DESC
+            ) AS rank_position
+        FROM scored
+        ORDER BY rank_position ASC, route_id
+        """,
+        params=[start_date, end_date],
+    )
+
+
+@st.cache_data(ttl=180)
+def _load_route_year_metrics(route_id: str, start_date: str, end_date: str) -> Any:
+    return query_table(
+        table_name="gold_route_time_metrics",
+        query_template="""
+        WITH year_agg AS (
+            SELECT
+                CAST(EXTRACT(YEAR FROM service_date) AS INTEGER) AS year,
+                SUM(frequency)::DOUBLE AS frequency,
+                quantile_cont(severity_p90, 0.9) FILTER (WHERE severity_p90 IS NOT NULL) AS severity_p90,
+                quantile_cont(regularity_p90, 0.9) FILTER (WHERE regularity_p90 IS NOT NULL) AS regularity_p90,
+                AVG(cause_mix_score) FILTER (WHERE cause_mix_score IS NOT NULL) AS cause_mix_score
+            FROM {source}
+            WHERE mode = 'bus'
+                AND route_id_gtfs = ?
+                AND service_date IS NOT NULL
+                AND service_date BETWEEN ? AND ?
+            GROUP BY 1
+        ),
+        scored AS (
+            SELECT
+                year,
+                frequency,
+                severity_p90,
+                regularity_p90,
+                COALESCE(cause_mix_score, 0.0) AS cause_mix_score,
+                (frequency - AVG(frequency) OVER()) / NULLIF(STDDEV_POP(frequency) OVER(), 0.0) AS z_freq,
+                (severity_p90 - AVG(severity_p90) OVER()) / NULLIF(STDDEV_POP(severity_p90) OVER(), 0.0) AS z_sev,
+                (regularity_p90 - AVG(regularity_p90) OVER()) / NULLIF(STDDEV_POP(regularity_p90) OVER(), 0.0) AS z_reg,
+                (COALESCE(cause_mix_score, 0.0) - AVG(COALESCE(cause_mix_score, 0.0)) OVER())
+                    / NULLIF(STDDEV_POP(COALESCE(cause_mix_score, 0.0)) OVER(), 0.0) AS z_cause
+            FROM year_agg
+        )
+        SELECT
+            year,
+            CAST(frequency AS BIGINT) AS frequency,
+            severity_p90,
+            regularity_p90,
+            cause_mix_score,
+            (
+                0.35 * COALESCE(z_freq, 0.0) +
+                0.30 * COALESCE(z_sev, 0.0) +
+                0.20 * COALESCE(z_reg, 0.0) +
+                0.15 * COALESCE(z_cause, 0.0)
+            ) AS composite_score
+        FROM scored
+        ORDER BY year ASC
+        """,
+        params=[route_id, start_date, end_date],
+    )
+
+
+@st.cache_data(ttl=180)
+def _load_route_month_metrics(route_id: str, year: int, start_date: str, end_date: str) -> Any:
+    return query_table(
+        table_name="gold_route_time_metrics",
+        query_template="""
+        WITH month_agg AS (
+            SELECT
+                CAST(EXTRACT(MONTH FROM service_date) AS INTEGER) AS month_num,
+                CAST(DATE_TRUNC('month', service_date) AS DATE) AS month_start,
+                SUM(frequency)::DOUBLE AS frequency,
+                quantile_cont(severity_p90, 0.9) FILTER (WHERE severity_p90 IS NOT NULL) AS severity_p90,
+                quantile_cont(regularity_p90, 0.9) FILTER (WHERE regularity_p90 IS NOT NULL) AS regularity_p90,
+                AVG(cause_mix_score) FILTER (WHERE cause_mix_score IS NOT NULL) AS cause_mix_score
+            FROM {source}
+            WHERE mode = 'bus'
+                AND route_id_gtfs = ?
+                AND CAST(EXTRACT(YEAR FROM service_date) AS INTEGER) = ?
+                AND service_date IS NOT NULL
+                AND service_date BETWEEN ? AND ?
+            GROUP BY 1, 2
+        ),
+        scored AS (
+            SELECT
+                month_num,
+                month_start,
+                frequency,
+                severity_p90,
+                regularity_p90,
+                COALESCE(cause_mix_score, 0.0) AS cause_mix_score,
+                (frequency - AVG(frequency) OVER()) / NULLIF(STDDEV_POP(frequency) OVER(), 0.0) AS z_freq,
+                (severity_p90 - AVG(severity_p90) OVER()) / NULLIF(STDDEV_POP(severity_p90) OVER(), 0.0) AS z_sev,
+                (regularity_p90 - AVG(regularity_p90) OVER()) / NULLIF(STDDEV_POP(regularity_p90) OVER(), 0.0) AS z_reg,
+                (COALESCE(cause_mix_score, 0.0) - AVG(COALESCE(cause_mix_score, 0.0)) OVER())
+                    / NULLIF(STDDEV_POP(COALESCE(cause_mix_score, 0.0)) OVER(), 0.0) AS z_cause
+            FROM month_agg
+        )
+        SELECT
+            month_num,
+            month_start,
+            STRFTIME(month_start, '%b') AS month_label,
+            CAST(frequency AS BIGINT) AS frequency,
+            severity_p90,
+            regularity_p90,
+            cause_mix_score,
+            (
+                0.35 * COALESCE(z_freq, 0.0) +
+                0.30 * COALESCE(z_sev, 0.0) +
+                0.20 * COALESCE(z_reg, 0.0) +
+                0.15 * COALESCE(z_cause, 0.0)
+            ) AS composite_score
+        FROM scored
+        ORDER BY month_num ASC
+        """,
+        params=[route_id, year, start_date, end_date],
+    )
+
+
+@st.cache_data(ttl=180)
+def _load_route_daily_month_metrics(route_id: str, year: int, month: int, start_date: str, end_date: str) -> Any:
+    return query_table(
+        table_name="gold_route_time_metrics",
+        query_template="""
+        WITH day_agg AS (
+            SELECT
+                service_date,
+                SUM(frequency)::DOUBLE AS incident_count,
+                SUM(COALESCE(severity_median, 0.0) * frequency) / NULLIF(SUM(frequency), 0.0) AS avg_delay,
+                quantile_cont(severity_p90, 0.9) FILTER (WHERE severity_p90 IS NOT NULL) AS p90_delay,
+                quantile_cont(regularity_p90, 0.9) FILTER (WHERE regularity_p90 IS NOT NULL) AS p90_gap,
+                AVG(cause_mix_score) FILTER (WHERE cause_mix_score IS NOT NULL) AS cause_mix_score
+            FROM {source}
+            WHERE mode = 'bus'
+                AND route_id_gtfs = ?
+                AND CAST(EXTRACT(YEAR FROM service_date) AS INTEGER) = ?
+                AND CAST(EXTRACT(MONTH FROM service_date) AS INTEGER) = ?
+                AND service_date IS NOT NULL
+                AND service_date BETWEEN ? AND ?
+            GROUP BY 1
+        ),
+        scored AS (
+            SELECT
+                service_date,
+                incident_count,
+                avg_delay,
+                p90_delay,
+                p90_gap,
+                COALESCE(cause_mix_score, 0.0) AS cause_mix_score,
+                (incident_count - AVG(incident_count) OVER()) / NULLIF(STDDEV_POP(incident_count) OVER(), 0.0) AS z_freq,
+                (p90_delay - AVG(p90_delay) OVER()) / NULLIF(STDDEV_POP(p90_delay) OVER(), 0.0) AS z_sev,
+                (p90_gap - AVG(p90_gap) OVER()) / NULLIF(STDDEV_POP(p90_gap) OVER(), 0.0) AS z_reg,
+                (COALESCE(cause_mix_score, 0.0) - AVG(COALESCE(cause_mix_score, 0.0)) OVER())
+                    / NULLIF(STDDEV_POP(COALESCE(cause_mix_score, 0.0)) OVER(), 0.0) AS z_cause
+            FROM day_agg
+        )
+        SELECT
+            service_date,
+            CAST(incident_count AS BIGINT) AS incident_count,
+            avg_delay,
+            p90_delay,
+            p90_gap,
+            cause_mix_score,
+            (
+                0.35 * COALESCE(z_freq, 0.0) +
+                0.30 * COALESCE(z_sev, 0.0) +
+                0.20 * COALESCE(z_reg, 0.0) +
+                0.15 * COALESCE(z_cause, 0.0)
+            ) AS composite_score
+        FROM scored
+        ORDER BY service_date ASC
+        """,
+        params=[route_id, year, month, start_date, end_date],
+    )
+
+
+@st.cache_data(ttl=180)
+def _load_route_weekday_metrics(route_id: str, year: int, start_date: str, end_date: str) -> Any:
+    return query_table(
+        table_name="gold_route_time_metrics",
+        query_template="""
+        WITH weekday_agg AS (
+            SELECT
+                STRFTIME(service_date, '%A') AS day_name,
+                CASE STRFTIME(service_date, '%A')
+                    WHEN 'Monday' THEN 1
+                    WHEN 'Tuesday' THEN 2
+                    WHEN 'Wednesday' THEN 3
+                    WHEN 'Thursday' THEN 4
+                    WHEN 'Friday' THEN 5
+                    WHEN 'Saturday' THEN 6
+                    WHEN 'Sunday' THEN 7
+                    ELSE 99
+                END AS day_order,
+                SUM(frequency)::DOUBLE AS incident_count,
+                SUM(COALESCE(severity_median, 0.0) * frequency) / NULLIF(SUM(frequency), 0.0) AS avg_delay,
+                quantile_cont(severity_p90, 0.9) FILTER (WHERE severity_p90 IS NOT NULL) AS p90_delay,
+                quantile_cont(regularity_p90, 0.9) FILTER (WHERE regularity_p90 IS NOT NULL) AS p90_gap,
+                AVG(cause_mix_score) FILTER (WHERE cause_mix_score IS NOT NULL) AS cause_mix_score
+            FROM {source}
+            WHERE mode = 'bus'
+                AND route_id_gtfs = ?
+                AND CAST(EXTRACT(YEAR FROM service_date) AS INTEGER) = ?
+                AND service_date IS NOT NULL
+                AND service_date BETWEEN ? AND ?
+            GROUP BY 1, 2
+        ),
+        scored AS (
+            SELECT
+                day_name,
+                day_order,
+                incident_count,
+                avg_delay,
+                p90_delay,
+                p90_gap,
+                COALESCE(cause_mix_score, 0.0) AS cause_mix_score,
+                (incident_count - AVG(incident_count) OVER()) / NULLIF(STDDEV_POP(incident_count) OVER(), 0.0) AS z_freq,
+                (p90_delay - AVG(p90_delay) OVER()) / NULLIF(STDDEV_POP(p90_delay) OVER(), 0.0) AS z_sev,
+                (p90_gap - AVG(p90_gap) OVER()) / NULLIF(STDDEV_POP(p90_gap) OVER(), 0.0) AS z_reg,
+                (COALESCE(cause_mix_score, 0.0) - AVG(COALESCE(cause_mix_score, 0.0)) OVER())
+                    / NULLIF(STDDEV_POP(COALESCE(cause_mix_score, 0.0)) OVER(), 0.0) AS z_cause
+            FROM weekday_agg
+        )
+        SELECT
+            day_name,
+            day_order,
+            CAST(incident_count AS BIGINT) AS incident_count,
+            avg_delay,
+            p90_delay,
+            p90_gap,
+            cause_mix_score,
+            (
+                0.35 * COALESCE(z_freq, 0.0) +
+                0.30 * COALESCE(z_sev, 0.0) +
+                0.20 * COALESCE(z_reg, 0.0) +
+                0.15 * COALESCE(z_cause, 0.0)
+            ) AS composite_score
+        FROM scored
+        ORDER BY day_order ASC
+        """,
+        params=[route_id, year, start_date, end_date],
+    )
+
+
+@st.cache_data(ttl=180)
+def _load_route_time_bin_metrics(route_id: str, year: int, day_name: str, start_date: str, end_date: str) -> Any:
+    return query_table(
+        table_name="gold_route_time_metrics",
+        query_template="""
+        WITH binned AS (
+            SELECT
+                CASE
+                    WHEN hour_bin BETWEEN 4 AND 6 THEN 'Early morning (4-6)'
+                    WHEN hour_bin BETWEEN 7 AND 9 THEN 'Morning peak (7-9)'
+                    WHEN hour_bin BETWEEN 10 AND 12 THEN 'Post-peak morning (10-12)'
+                    WHEN hour_bin BETWEEN 13 AND 14 THEN 'Lunch time (13-14)'
+                    WHEN hour_bin BETWEEN 15 AND 16 THEN 'Post-lunch (15-16)'
+                    WHEN hour_bin BETWEEN 17 AND 19 THEN 'Evening peak (17-19)'
+                    WHEN hour_bin BETWEEN 20 AND 22 THEN 'Night (20-22)'
+                    WHEN hour_bin IN (23, 0, 1) THEN 'Late night (23-1)'
+                    WHEN hour_bin BETWEEN 2 AND 3 THEN 'Overnight (2-3)'
+                    ELSE 'Other'
+                END AS time_bin,
+                SUM(frequency)::DOUBLE AS incident_count,
+                SUM(COALESCE(severity_median, 0.0) * frequency) / NULLIF(SUM(frequency), 0.0) AS avg_delay,
+                quantile_cont(severity_p90, 0.9) FILTER (WHERE severity_p90 IS NOT NULL) AS p90_delay,
+                quantile_cont(regularity_p90, 0.9) FILTER (WHERE regularity_p90 IS NOT NULL) AS p90_gap,
+                AVG(cause_mix_score) FILTER (WHERE cause_mix_score IS NOT NULL) AS cause_mix_score
+            FROM {source}
+            WHERE mode = 'bus'
+                AND route_id_gtfs = ?
+                AND CAST(EXTRACT(YEAR FROM service_date) AS INTEGER) = ?
+                AND STRFTIME(service_date, '%A') = ?
+                AND service_date IS NOT NULL
+                AND service_date BETWEEN ? AND ?
+            GROUP BY 1
+        ),
+        scored AS (
+            SELECT
+                time_bin,
+                incident_count,
+                avg_delay,
+                p90_delay,
+                p90_gap,
+                COALESCE(cause_mix_score, 0.0) AS cause_mix_score,
+                (incident_count - AVG(incident_count) OVER()) / NULLIF(STDDEV_POP(incident_count) OVER(), 0.0) AS z_freq,
+                (p90_delay - AVG(p90_delay) OVER()) / NULLIF(STDDEV_POP(p90_delay) OVER(), 0.0) AS z_sev,
+                (p90_gap - AVG(p90_gap) OVER()) / NULLIF(STDDEV_POP(p90_gap) OVER(), 0.0) AS z_reg,
+                (COALESCE(cause_mix_score, 0.0) - AVG(COALESCE(cause_mix_score, 0.0)) OVER())
+                    / NULLIF(STDDEV_POP(COALESCE(cause_mix_score, 0.0)) OVER(), 0.0) AS z_cause
+            FROM binned
+        )
+        SELECT
+            time_bin,
+            CAST(incident_count AS BIGINT) AS incident_count,
+            avg_delay,
+            p90_delay,
+            p90_gap,
+            cause_mix_score,
+            (
+                0.35 * COALESCE(z_freq, 0.0) +
+                0.30 * COALESCE(z_sev, 0.0) +
+                0.20 * COALESCE(z_reg, 0.0) +
+                0.15 * COALESCE(z_cause, 0.0)
+            ) AS composite_score
+        FROM scored
+        """,
+        params=[route_id, year, day_name, start_date, end_date],
+    )
+
+
+@st.cache_data(ttl=180)
+def _load_route_top_cause(route_id: str, start_date: str, end_date: str) -> Any:
+    return query_table(
+        table_name="gold_delay_events_core",
+        query_template="""
+        SELECT
+            incident_category,
+            SUM(event_count)::BIGINT AS incident_count
+        FROM {source}
+        WHERE mode = 'bus'
+            AND route_id_gtfs = ?
+            AND service_date IS NOT NULL
+            AND service_date BETWEEN ? AND ?
+        GROUP BY 1
+        ORDER BY incident_count DESC, incident_category
+        LIMIT 1
+        """,
+        params=[route_id, start_date, end_date],
+    )
+
+
+def _render_clickable_horizontal(
+    frame: pd.DataFrame,
+    x_field: str,
+    y_field: str,
+    selected_value: Any,
+    selection_name: str,
+    title: str,
+    tooltip: list[str],
+) -> Any:
+    plot = frame.copy()
+    plot["is_selected"] = plot[y_field].astype(str) == str(selected_value)
+    selector = alt.selection_point(name=selection_name, fields=[y_field], on="click", clear="dblclick")
+
+    chart = (
+        alt.Chart(plot)
+        .mark_bar()
+        .encode(
+            x=alt.X(f"{x_field}:Q"),
+            y=alt.Y(f"{y_field}:N", sort="-x"),
+            color=alt.Color("is_selected:N", legend=None, scale=alt.Scale(domain=[True, False], range=["#ea580c", "#2563eb"])),
+            tooltip=tooltip,
+        )
+        .add_params(selector)
+        .properties(title=title, height=380)
+    )
+    for selection_mode in (selection_name, [selection_name]):
+        try:
+            return st.altair_chart(
+                chart,
+                use_container_width=True,
+                on_select="rerun",
+                selection_mode=selection_mode,
+            )
+        except Exception:
+            continue
+    return st.altair_chart(chart, use_container_width=True)
+
+
+def _render_clickable_bar(
+    frame: pd.DataFrame,
+    x_field: str,
+    y_field: str,
+    selected_value: Any,
+    selected_field: str,
+    selection_name: str,
+    title: str,
+    tooltip: list[str],
+    x_sort: Any | None = None,
+) -> Any:
+    plot = frame.copy()
+    plot["is_selected"] = plot[selected_field].astype(str) == str(selected_value)
+    selector = alt.selection_point(name=selection_name, fields=[selected_field], on="click", clear="dblclick")
+
+    x_encoding = alt.X(f"{x_field}:N")
+    if x_sort is not None:
+        x_encoding = alt.X(f"{x_field}:N", sort=x_sort)
+
+    chart = (
+        alt.Chart(plot)
+        .mark_bar()
+        .encode(
+            x=x_encoding,
+            y=alt.Y(f"{y_field}:Q"),
+            color=alt.Color("is_selected:N", legend=None, scale=alt.Scale(domain=[True, False], range=["#ea580c", "#0f766e"])),
+            tooltip=tooltip,
+        )
+        .add_params(selector)
+        .properties(title=title, height=300)
+    )
+    for selection_mode in (selection_name, [selection_name]):
+        try:
+            return st.altair_chart(
+                chart,
+                use_container_width=True,
+                on_select="rerun",
+                selection_mode=selection_mode,
+            )
+        except Exception:
+            continue
+    return st.altair_chart(chart, use_container_width=True)
+
+
+def _render_line_chart(frame: pd.DataFrame, x_field: str, y_field: str, title: str, tooltip: list[str]) -> None:
+    if frame.empty:
+        st.info("No rows available for this slice.")
+        return
+    chart = (
+        alt.Chart(frame)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X(x_field),
+            y=alt.Y(y_field),
+            tooltip=tooltip,
+        )
+        .properties(title=title, height=280)
+    )
+    st.altair_chart(chart, use_container_width=True)
+
+
+def _build_breadcrumb() -> str:
+    parts = ["Top routes"]
+    route = st.session_state[STATE_ROUTE]
+    year = st.session_state[STATE_YEAR]
+    month = st.session_state[STATE_MONTH]
+    weekday = st.session_state[STATE_WEEKDAY]
+
+    if route is not None:
+        parts.append(f"Route {route}")
+    if year is not None:
+        parts.append(f"Year {year}")
+    if month is not None:
+        parts.append(f"Month {month:02d}")
+    if weekday is not None:
+        parts.append(f"Weekday {weekday}")
+    return " > ".join(parts)
+
+
+def _show_route_summary(route_row: pd.Series, route_id: str, start_date: str, end_date: str) -> None:
+    cause_result = _load_route_top_cause(route_id, start_date, end_date)
+    top_cause = "-"
+    if cause_result.status == "ok" and not cause_result.frame.empty:
+        cause_value = cause_result.frame.iloc[0]["incident_category"]
+        top_cause = str(cause_value) if pd.notna(cause_value) else "-"
+
+    st.markdown("#### Selected Route Summary")
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    c1.metric("Overall Composite", fmt_float(route_row["composite_score"], digits=3))
+    c2.metric("Total Incidents", fmt_int(route_row["total_incidents"]))
+    c3.metric("P90 Delay (min)", fmt_float(route_row["severity_p90"], digits=1))
+    c4.metric("P90 Gap (min)", fmt_float(route_row["regularity_p90"], digits=1))
+    c5.metric("Cause Mix", fmt_float(route_row.get("cause_mix_score"), digits=3))
+    c6.metric("Top Cause Category", top_cause)
+
+
+def _route_by_id(frame: pd.DataFrame, route_id: str) -> pd.Series | None:
+    matched = frame[frame["route_id"].astype(str) == str(route_id)]
+    if matched.empty:
+        return None
+    return matched.iloc[0]
+
+
+def _prep_status_frame(result: Any) -> pd.DataFrame:
+    frame = result.frame.copy()
+    if "service_date" in frame.columns:
+        frame["service_date"] = pd.to_datetime(frame["service_date"])
+    if "month_start" in frame.columns:
+        frame["month_start"] = pd.to_datetime(frame["month_start"])
+    return frame
+
+
+def _require_result(result: Any, missing_message: str) -> pd.DataFrame:
+    if result.status in {"missing", "error"}:
+        st.error(result.message)
+        return pd.DataFrame()
+    if result.status == "empty":
+        st.info(missing_message)
+        return pd.DataFrame()
+    return _prep_status_frame(result)
+
+
+_init_state()
+
+st.title("Bus Reliability Drill-Down")
+st.caption(
+    "Guided drill-down for TTC bus reliability (selected service-date window): "
+    "route ranking -> year -> month -> day or weekday -> time-of-day."
+)
+
+selected_metric_label = st.selectbox(
+    "Metric to analyze",
+    options=METRIC_OPTIONS,
+    index=0,
+    key="bus_drill_metric_selector",
+)
+
+coverage_result = _load_route_coverage_window()
+coverage_frame = _require_result(coverage_result, "No bus route service-date coverage found in Gold route metrics.")
+if coverage_frame.empty:
+    st.stop()
+coverage_row = coverage_frame.iloc[0]
+min_service_date = pd.to_datetime(coverage_row["min_service_date"], errors="coerce")
+max_service_date = pd.to_datetime(coverage_row["max_service_date"], errors="coerce")
+if pd.isna(min_service_date) or pd.isna(max_service_date):
+    st.info("Service-date coverage is unavailable for bus drill-down.")
+    st.stop()
+
+min_date = min_service_date.date()
+max_date = max_service_date.date()
+date_selection = st.date_input(
+    "Service date range",
+    value=(min_date, max_date),
+    min_value=min_date,
+    max_value=max_date,
+    key="bus_drill_date_range",
+)
+selected_start_date, selected_end_date = _normalize_date_range(date_selection, min_date=min_date, max_date=max_date)
+selected_start_iso = selected_start_date.isoformat()
+selected_end_iso = selected_end_date.isoformat()
+
+window_key = f"{selected_start_iso}|{selected_end_iso}"
+if st.session_state.get(STATE_DATE_WINDOW) != window_key:
+    st.session_state[STATE_DATE_WINDOW] = window_key
+    _reset_all()
+
+st.caption(
+    "Data coverage (`service_date`, bus): "
+    f"{min_date:%Y-%m} to {max_date:%Y-%m} ({min_date:%Y-%m-%d} to {max_date:%Y-%m-%d}) | "
+    f"Selected: {selected_start_iso} to {selected_end_iso}"
+)
+
+ctrl_left, ctrl_mid, ctrl_right = st.columns([2, 1, 1])
+ctrl_left.info(f"Breadcrumb: {_build_breadcrumb()}")
+if ctrl_mid.button("Back One Level"):
+    _step_back()
+if ctrl_right.button("Reset Drill-Down"):
+    _reset_all()
+
+top_k = st.slider("Top K Routes", min_value=5, max_value=100, value=20, step=5)
+
+ranking_result = _load_top_routes_full_history(selected_start_iso, selected_end_iso)
+ranking_frame = _require_result(ranking_result, "No bus route reliability rows available in Gold route metrics.")
+if ranking_frame.empty:
+    st.stop()
+
+ranking_frame = ranking_frame.sort_values(["rank_position", "route_id"]).reset_index(drop=True)
+
+if st.session_state[STATE_ROUTE] is None:
+    st.session_state[STATE_ROUTE] = str(ranking_frame.iloc[0]["route_id"])
+else:
+    route_in_data = ranking_frame["route_id"].astype(str).eq(str(st.session_state[STATE_ROUTE])).any()
+    if not route_in_data:
+        st.session_state[STATE_ROUTE] = str(ranking_frame.iloc[0]["route_id"])
+        _clear_from("route")
+
+top_frame = ranking_frame.head(top_k).copy()
+top_frame["frequency"] = top_frame["total_incidents"]
+ranking_metric_column, ranking_metric_label, ranking_metric_notice = _resolve_summary_metric(
+    top_frame,
+    selected_metric_label,
+)
+if ranking_metric_notice:
+    st.info(ranking_metric_notice)
+if selected_metric_label == "Composite Score":
+    top_frame = top_frame.sort_values(["rank_position", "route_id"]).reset_index(drop=True)
+else:
+    top_frame = top_frame.sort_values([ranking_metric_column, "rank_position"], ascending=[False, True]).reset_index(drop=True)
+st.markdown("### 1. Top K Bus Routes Across Selected Window")
+route_event = _render_clickable_horizontal(
+    frame=top_frame,
+    x_field=ranking_metric_column,
+    y_field="route_id",
+    selected_value=st.session_state[STATE_ROUTE],
+    selection_name="route_pick",
+    title=(
+        f"Worst Routes by Composite Reliability Score ({selected_start_iso} to {selected_end_iso})"
+        if selected_metric_label == "Composite Score"
+        else f"Worst Routes by {ranking_metric_label} ({selected_start_iso} to {selected_end_iso})"
+    ),
+    tooltip=[
+        "route_id:N",
+        "rank_position:Q",
+        f"{ranking_metric_column}:Q",
+        "total_incidents:Q",
+        "severity_p90:Q",
+        "regularity_p90:Q",
+        "cause_mix_score:Q",
+        "composite_score:Q",
+    ],
+)
+route_clicked = _extract_selection_value(route_event, "route_pick", "route_id")
+if route_clicked is not None and str(route_clicked) != str(st.session_state[STATE_ROUTE]):
+    st.session_state[STATE_ROUTE] = str(route_clicked)
+    _clear_from("route")
+
+route_options = top_frame["route_id"].astype(str).tolist()
+route_index = route_options.index(str(st.session_state[STATE_ROUTE])) if str(st.session_state[STATE_ROUTE]) in route_options else 0
+route_select = st.selectbox("Selected route", options=route_options, index=route_index)
+if route_select != str(st.session_state[STATE_ROUTE]):
+    st.session_state[STATE_ROUTE] = route_select
+    _clear_from("route")
+
+selected_route = str(st.session_state[STATE_ROUTE])
+route_row = _route_by_id(ranking_frame, selected_route)
+if route_row is not None:
+    _show_route_summary(route_row, selected_route, selected_start_iso, selected_end_iso)
+
+st.markdown("---")
+st.markdown("### 2. Selected Route by Year")
+year_result = _load_route_year_metrics(selected_route, selected_start_iso, selected_end_iso)
+year_frame = _require_result(year_result, "No yearly slices available for the selected route.")
+if year_frame.empty:
+    st.stop()
+
+year_frame["year"] = year_frame["year"].astype(int)
+year_frame = year_frame.sort_values("year")
+year_metric_column, year_metric_label, year_metric_notice = _resolve_summary_metric(year_frame, selected_metric_label)
+if year_metric_notice:
+    st.info(year_metric_notice)
+
+if st.session_state[STATE_YEAR] is None:
+    st.session_state[STATE_YEAR] = int(year_frame.iloc[0]["year"])
+else:
+    if int(st.session_state[STATE_YEAR]) not in set(year_frame["year"].tolist()):
+        st.session_state[STATE_YEAR] = int(year_frame.iloc[0]["year"])
+        _clear_from("year")
+
+year_event = _render_clickable_bar(
+    frame=year_frame,
+    x_field="year",
+    y_field=year_metric_column,
+    selected_value=st.session_state[STATE_YEAR],
+    selected_field="year",
+    selection_name="year_pick",
+    title=(
+        f"Route {selected_route} Reliability by Year"
+        if selected_metric_label == "Composite Score"
+        else f"Route {selected_route} Reliability by Year ({year_metric_label})"
+    ),
+    tooltip=[
+        "year:N",
+        f"{year_metric_column}:Q",
+        "frequency:Q",
+        "severity_p90:Q",
+        "regularity_p90:Q",
+        "cause_mix_score:Q",
+        "composite_score:Q",
+    ],
+)
+year_clicked = _extract_selection_value(year_event, "year_pick", "year")
+if year_clicked is not None:
+    year_clicked_int = int(float(year_clicked))
+    if year_clicked_int != int(st.session_state[STATE_YEAR]):
+        st.session_state[STATE_YEAR] = year_clicked_int
+        _clear_from("year")
+
+year_options = [int(v) for v in year_frame["year"].tolist()]
+year_index = year_options.index(int(st.session_state[STATE_YEAR]))
+year_select = st.selectbox("Selected year", options=year_options, index=year_index)
+if int(year_select) != int(st.session_state[STATE_YEAR]):
+    st.session_state[STATE_YEAR] = int(year_select)
+    _clear_from("year")
+
+selected_year = int(st.session_state[STATE_YEAR])
+st.info(f"Context: Route {selected_route} | Year {selected_year}")
+
+st.markdown("---")
+st.markdown("### 3. Selected Route Within Year by Month")
+month_result = _load_route_month_metrics(selected_route, selected_year, selected_start_iso, selected_end_iso)
+month_frame = _require_result(month_result, "No month-level slices available for the selected route/year.")
+if month_frame.empty:
+    st.stop()
+
+month_frame["month_num"] = month_frame["month_num"].astype(int)
+month_frame = month_frame.sort_values("month_num")
+month_frame["month_axis"] = month_frame["month_label"] + " (" + month_frame["month_num"].astype(str).str.zfill(2) + ")"
+month_metric_column, month_metric_label, month_metric_notice = _resolve_summary_metric(month_frame, selected_metric_label)
+if month_metric_notice:
+    st.info(month_metric_notice)
+
+if st.session_state[STATE_MONTH] is None:
+    st.session_state[STATE_MONTH] = int(month_frame.iloc[0]["month_num"])
+else:
+    if int(st.session_state[STATE_MONTH]) not in set(month_frame["month_num"].tolist()):
+        st.session_state[STATE_MONTH] = int(month_frame.iloc[0]["month_num"])
+
+month_event = _render_clickable_bar(
+    frame=month_frame,
+    x_field="month_axis",
+    y_field=month_metric_column,
+    selected_value=st.session_state[STATE_MONTH],
+    selected_field="month_num",
+    selection_name="month_pick",
+    title=(
+        f"Route {selected_route} Reliability by Month in {selected_year}"
+        if selected_metric_label == "Composite Score"
+        else f"Route {selected_route} Reliability by Month in {selected_year} ({month_metric_label})"
+    ),
+    tooltip=[
+        "month_axis:N",
+        f"{month_metric_column}:Q",
+        "frequency:Q",
+        "severity_p90:Q",
+        "regularity_p90:Q",
+        "cause_mix_score:Q",
+        "composite_score:Q",
+    ],
+    x_sort=month_frame["month_axis"].tolist(),
+)
+month_clicked = _extract_selection_value(month_event, "month_pick", "month_num")
+if month_clicked is not None:
+    month_clicked_int = int(float(month_clicked))
+    if month_clicked_int != int(st.session_state[STATE_MONTH]):
+        st.session_state[STATE_MONTH] = month_clicked_int
+
+month_options = [int(v) for v in month_frame["month_num"].tolist()]
+month_names = {
+    int(row["month_num"]): str(row["month_label"])
+    for _, row in month_frame[["month_num", "month_label"]].drop_duplicates().iterrows()
+}
+month_index = month_options.index(int(st.session_state[STATE_MONTH]))
+month_select = st.selectbox(
+    "Selected month",
+    options=month_options,
+    index=month_index,
+    format_func=lambda m: f"{month_names.get(m, 'M')} ({m:02d})",
+)
+if int(month_select) != int(st.session_state[STATE_MONTH]):
+    st.session_state[STATE_MONTH] = int(month_select)
+
+selected_month = int(st.session_state[STATE_MONTH])
+
+branch_left, branch_right = st.columns(2)
+
+with branch_left:
+    st.markdown("### 4A. Selected Month by Day")
+    daily_result = _load_route_daily_month_metrics(
+        selected_route,
+        selected_year,
+        selected_month,
+        selected_start_iso,
+        selected_end_iso,
+    )
+    daily_frame = _require_result(daily_result, "No day-level rows available for this route/year/month.")
+    if not daily_frame.empty:
+        daily_frame["service_date"] = pd.to_datetime(daily_frame["service_date"])
+        unstable_daily = selected_metric_label == "Composite Score" and _is_composite_unstable(daily_frame, min_points=7)
+        daily_metric_frame = _prepare_drill_metric_frame(daily_frame)
+        daily_metric_column, daily_metric_notice = _resolve_drill_metric(
+            daily_metric_frame,
+            selected_metric_label,
+            composite_unstable=unstable_daily,
+        )
+        if daily_metric_notice:
+            st.caption(daily_metric_notice)
+        if unstable_daily and selected_metric_label == "Composite Score":
+            month_context = month_frame[month_frame["month_num"] == selected_month]
+            context_score = (
+                month_context["composite_score"].iloc[0] if not month_context.empty else pd.NA
+            )
+            st.caption(
+                "Composite is unstable at daily granularity for this slice. "
+                f"Fallback metric is active. Month-level composite context: {fmt_float(context_score, digits=3)}."
+            )
+
+        _render_line_chart(
+            frame=daily_metric_frame,
+            x_field="service_date:T",
+            y_field=f"{daily_metric_column}:Q",
+            title=(
+                f"Route {selected_route} Daily Pattern in {selected_year}-{selected_month:02d}"
+                if selected_metric_label == "Composite Score"
+                else f"Route {selected_route} Daily Pattern in {selected_year}-{selected_month:02d} ({selected_metric_label})"
+            ),
+            tooltip=[
+                "service_date:T",
+                "incident_count:Q",
+                "avg_delay:Q",
+                "p90_delay:Q",
+                "p90_gap:Q",
+                "cause_mix_score:Q",
+                "composite_score:Q",
+            ],
+        )
+
+with branch_right:
+    st.markdown("### 4B. Selected Year by Weekday")
+    weekday_result = _load_route_weekday_metrics(selected_route, selected_year, selected_start_iso, selected_end_iso)
+    weekday_frame = _require_result(weekday_result, "No weekday-level rows available for this route/year.")
+    if not weekday_frame.empty:
+        weekday_frame["day_name"] = pd.Categorical(
+            weekday_frame["day_name"],
+            categories=DAY_NAME_ORDER,
+            ordered=True,
+        )
+        weekday_frame = weekday_frame.sort_values("day_name")
+        weekday_metric_frame = _prepare_drill_metric_frame(weekday_frame)
+        weekday_metric_column, weekday_metric_notice = _resolve_drill_metric(
+            weekday_metric_frame,
+            selected_metric_label,
+        )
+        if weekday_metric_notice:
+            st.info(weekday_metric_notice)
+
+        if st.session_state[STATE_WEEKDAY] is None:
+            st.session_state[STATE_WEEKDAY] = str(weekday_frame.iloc[0]["day_name"])
+        else:
+            if str(st.session_state[STATE_WEEKDAY]) not in set(weekday_frame["day_name"].astype(str).tolist()):
+                st.session_state[STATE_WEEKDAY] = str(weekday_frame.iloc[0]["day_name"])
+
+        weekday_event = _render_clickable_bar(
+            frame=weekday_metric_frame,
+            x_field="day_name",
+            y_field=weekday_metric_column,
+            selected_value=st.session_state[STATE_WEEKDAY],
+            selected_field="day_name",
+            selection_name="weekday_pick",
+            title=(
+                f"Route {selected_route} Reliability by Weekday in {selected_year}"
+                if selected_metric_label == "Composite Score"
+                else f"Route {selected_route} Reliability by Weekday in {selected_year} ({selected_metric_label})"
+            ),
+            tooltip=[
+                "day_name:N",
+                f"{weekday_metric_column}:Q",
+                "incident_count:Q",
+                "p90_delay:Q",
+                "p90_gap:Q",
+                "cause_mix_score:Q",
+                "composite_score:Q",
+            ],
+            x_sort=DAY_NAME_ORDER,
+        )
+        weekday_clicked = _extract_selection_value(weekday_event, "weekday_pick", "day_name")
+        if weekday_clicked is not None and str(weekday_clicked) != str(st.session_state[STATE_WEEKDAY]):
+            st.session_state[STATE_WEEKDAY] = str(weekday_clicked)
+
+        weekday_options = [str(v) for v in weekday_frame["day_name"].astype(str).tolist()]
+        weekday_index = (
+            weekday_options.index(str(st.session_state[STATE_WEEKDAY]))
+            if str(st.session_state[STATE_WEEKDAY]) in weekday_options
+            else 0
+        )
+        weekday_select = st.selectbox("Selected weekday", options=weekday_options, index=weekday_index)
+        if weekday_select != str(st.session_state[STATE_WEEKDAY]):
+            st.session_state[STATE_WEEKDAY] = weekday_select
+
+if st.session_state[STATE_WEEKDAY] is not None:
+    selected_weekday = str(st.session_state[STATE_WEEKDAY])
+    st.markdown("---")
+    st.markdown("### 5. Weekday to Time-of-Day Bins")
+    st.info(f"Context: Route {selected_route} | Year {selected_year} | Weekday {selected_weekday}")
+
+    time_bin_result = _load_route_time_bin_metrics(
+        selected_route,
+        selected_year,
+        selected_weekday,
+        selected_start_iso,
+        selected_end_iso,
+    )
+    time_bin_frame = _require_result(time_bin_result, "No time-bin rows available for this route/year/weekday.")
+    if not time_bin_frame.empty:
+        time_bin_frame["bin_order"] = time_bin_frame["time_bin"].map(TIME_BIN_ORDER_MAP).fillna(99).astype(int)
+        time_bin_frame = time_bin_frame.sort_values("bin_order")
+        time_metric_frame = _prepare_drill_metric_frame(time_bin_frame)
+        unstable_time = selected_metric_label == "Composite Score" and _is_composite_unstable(time_metric_frame, min_points=6)
+        time_metric_column, time_metric_notice = _resolve_drill_metric(
+            time_metric_frame,
+            selected_metric_label,
+            composite_unstable=unstable_time,
+        )
+        if time_metric_notice:
+            st.caption(time_metric_notice)
+        if unstable_time and selected_metric_label == "Composite Score":
+            st.caption(
+                "Composite is unstable at fine time-bin granularity for this slice. "
+                "Fallback metrics are shown while preserving higher-level composite context."
+            )
+
+        chart = (
+            alt.Chart(time_metric_frame)
+            .mark_bar()
+            .encode(
+                x=alt.X("time_bin:N", sort=TIME_BIN_LABELS),
+                y=alt.Y(f"{time_metric_column}:Q"),
+                tooltip=[
+                    "time_bin:N",
+                    "incident_count:Q",
+                    "avg_delay:Q",
+                    "p90_delay:Q",
+                    "p90_gap:Q",
+                    "cause_mix_score:Q",
+                    "composite_score:Q",
+                ],
+            )
+            .properties(
+                title=(
+                    f"Route {selected_route} Time-of-Day Reliability on {selected_weekday} ({selected_year})"
+                    if selected_metric_label == "Composite Score"
+                    else f"Route {selected_route} Time-of-Day Reliability on {selected_weekday} ({selected_year}) ({selected_metric_label})"
+                ),
+                height=320,
+            )
+        )
+        st.altair_chart(chart, use_container_width=True)
+
+st.caption(
+    "Data source policy: this page reads only DuckDB/Gold marts with parquet fallback (`gold_route_time_metrics`, "
+    "`gold_delay_events_core`)."
+)

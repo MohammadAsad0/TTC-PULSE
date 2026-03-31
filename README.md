@@ -1,8 +1,63 @@
 # TTC Pulse
 
-TTC Pulse is a small Streamlit project that reads raw TTC bus, subway, and GTFS CSV files directly from this repository, cleans them, and exposes them through a lightweight dashboard.
+TTC Pulse is a DuckDB + Parquet + Streamlit analytics project for studying TTC reliability using:
+- historical TTC bus delay logs
+- historical TTC subway delay logs
+- static GTFS
+- GTFS-Realtime Service Alerts
 
-## Project Layout
+The project builds a layered pipeline:
+- `Raw` = immutable source registries
+- `Bronze` = row-preserving extracts with lineage
+- `Silver` = normalized facts, dimensions, alias tables, and GTFS bridge assets
+- `Gold` = stakeholder-facing marts for rankings, trends, heatmaps, alert validation, and hotspot analysis
+
+The MVP runtime is:
+- Python
+- DuckDB
+- Parquet
+- Streamlit
+
+Spark is intentionally excluded from the MVP.
+
+## Repository Layout
+
+Key folders:
+- `app/` Streamlit dashboard
+- `src/ttc_pulse/` pipeline modules
+- `raw/`, `bronze/`, `silver/`, `dimensions/`, `bridge/`, `reviews/`, `gold/` data artifacts
+- `alerts/` GTFS-RT raw snapshots and parsed outputs
+- `data/ttc_pulse.duckdb` local analytical database
+- `docs/` technical documentation and run logs
+- `reports/` QA, freeze, and regression outputs
+
+## Prerequisites
+
+- Python `3.11+`
+- `git`
+- internet access only if you want to poll live GTFS-RT alerts
+
+## Clone and Environment Setup
+
+```bash
+git clone https://github.com/MohammadAsad0/TTC-PULSE.git
+cd TTC-PULSE/ttc_pulse
+
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+All commands below assume:
+- you are inside the `ttc_pulse/` folder
+- your virtual environment is activated
+
+## Required Data Layout
+
+The ingestion code resolves datasets from a sibling folder named `datasets/`.
+
+Expected workspace layout:
 
 ```text
 TTC-PULSE/
@@ -22,16 +77,16 @@ TTC-PULSE/
 `-- ttc_pulse/
 ```
 
-## Raw Data Layout
+Notes:
+- `datasets/` must be next to `ttc_pulse/`, not inside it.
+- Bus ingestion expects files under `datasets/02_bus_delay/csv`.
+- Subway ingestion expects files under `datasets/03_subway_delay/csv`.
+- GTFS ingestion expects files under `datasets/01_gtfs_merged`.
+- GTFS-RT snapshot polling writes into `ttc_pulse/alerts/raw_snapshots/`.
 
-The app expects the raw files to stay in this repository:
+## Quick Start
 
-```text
-data/
-|-- bus/      # raw bus CSV files
-|-- subway/   # raw subway CSV files
-`-- gtfs/     # static GTFS CSV files
-```
+If you want the full local build from raw data to dashboard:
 
 Before launching Streamlit, create a `.env` file in the project root:
 
@@ -145,33 +200,62 @@ streamlit run app/streamlit_app.py
 ```
 
 Default local URL:
+- [http://localhost:8501](http://localhost:8501)
 
-- `http://localhost:8501`
+## GTFS-RT Alerts
+
+### Poll live Service Alerts once
+
+```bash
+export PYTHONPATH=src
+python -m ttc_pulse.alerts.poll_service_alerts --allow-network --register-manifest
+```
+
+### Parse local GTFS-RT snapshots
+
+```bash
+export PYTHONPATH=src
+python -m ttc_pulse.alerts.parse_service_alerts
+```
+
+### Test mode without relying on live collection
+
+```bash
+export PYTHONPATH=src
+python -m ttc_pulse.alerts.poll_service_alerts --test-mode --register-manifest
+python -m ttc_pulse.alerts.parse_service_alerts
+```
+
+Outputs land in:
+- `alerts/raw_snapshots/`
+- `alerts/parsed/`
 
 ## Verification
 
-Run the lightweight verification command to confirm the raw files load and the cleaned datasets have date coverage:
+Useful files to inspect after a run:
+- `logs/ingestion_log.csv`
+- `logs/step2_registration_log.csv`
+- `logs/step3_gold_build_log.csv`
+- `outputs/final_metrics_summary.md`
+- `docs/step1_summary.md`
+- `docs/step2_summary.md`
+- `docs/step3_summary.md`
 
-```powershell
-$env:PYTHONPATH = "src"
-python -m ttc_pulse.verification
-```
+## Known Runtime Notes
 
-This prints:
+- The dashboard reads from DuckDB first and falls back to Gold parquet files when needed.
+- `gold_alert_validation` can be empty if no normalized GTFS-RT alert facts exist yet.
+- `gold_spatial_hotspot` is confidence-gated; if the gate fails, the hotspot page may have limited or deferred outputs.
+- Bus spatial hotspots in the current MVP are provisional route-centroid views, not precise incident geocodes.
 
-- file counts discovered in `data/bus`, `data/subway`, and `data/gtfs`
-- cleaned row counts
-- date coverage for bus and subway
-- whether GTFS route and stop lookup tables were loaded
+## Documentation
 
 For more detail:
 - [Runbook](docs/runbook.md): operational steps to run, refresh, troubleshoot, and recover the pipelines/dashboard.
 - [Architecture](docs/architecture.md): system design, data flow across raw/bronze/silver/gold, and component responsibilities.
 - [Data Dictionary](docs/data_dictionary.md): table/column definitions, metric meanings, and key assumptions.
 
-- `Start Here`: landing page modeled after the shared mockup
-- `Dataset Explorer`: choose bus or subway, filter by service date range, and inspect cleaned row-level records
-- `Overview`: quick counts, date coverage, and route/station summaries
+## Current Dashboard Scope
 
 The current dashboard includes:
 - Reliability Overview
