@@ -378,6 +378,23 @@ def _render_live_updates(manager: LiveAlertPollingManager, route_mode_lookup: di
         .sort_values("snapshot_ts_utc")
     )
 
+    if st.session_state.get("live_alert_runtime_last_poll_utc"):
+        last_runtime_poll_utc = str(st.session_state.get("live_alert_runtime_last_poll_utc") or "")
+        runtime_alerts = list(st.session_state.get("live_alert_runtime_current_alerts", []))
+        st.info(
+            "Latest scheduler capture: "
+            + f"{_format_local_timestamp(last_runtime_poll_utc)} "
+            + f"with {fmt_int(len(runtime_alerts))} current distinct alerts."
+        )
+    elif not archive_summary_live.empty:
+        latest_snapshot_ts = archive_summary_live["snapshot_ts_utc"].max()
+        latest_alert_rows = int(archive_summary_live.iloc[-1]["alert_rows"])
+        st.info(
+            "Latest scheduler capture: "
+            + f"{_format_local_timestamp(latest_snapshot_ts)} "
+            + f"with {fmt_int(latest_alert_rows)} parsed alert rows."
+        )
+
     alerts_header_col, alerts_mode_col, alerts_limit_col = st.columns([5, 2, 2], vertical_alignment="bottom")
     with alerts_header_col:
         st.subheader("Current TTC alerts")
@@ -464,7 +481,6 @@ archive_frame = _load_alert_archive()
 hotspot_frame = _load_hotspot_reference(top_k=50)
 route_universe_size = _load_route_universe_size()
 route_mode_lookup = _load_route_mode_lookup()
-runtime_alerts = list(st.session_state.get("live_alert_runtime_current_alerts", []))
 
 if archive_frame.empty:
     last_poll_utc = str(st.session_state.get("live_alert_runtime_last_poll_utc") or "")
@@ -520,19 +536,6 @@ kpi_c.metric("Latest Capture Rows", fmt_int(latest_capture_rows))
 kpi_d.metric("Route Hit Rate", fmt_pct(hit_stats["hit_rate"]))
 kpi_e.metric("Lift vs Baseline", f"{hit_stats['lift']:.2f}x")
 
-last_runtime_poll_utc = str(st.session_state.get("live_alert_runtime_last_poll_utc") or "")
-if last_runtime_poll_utc:
-    st.info(
-        "Latest scheduler capture: "
-        f"{_format_local_timestamp(last_runtime_poll_utc)} "
-        f"with {fmt_int(len(runtime_alerts))} current distinct alerts."
-    )
-else:
-    st.info(
-        "Latest scheduler capture: "
-        f"{_format_local_timestamp(latest_capture_ts)} "
-        f"with {fmt_int(latest_capture_rows)} parsed alert rows."
-    )
 st.caption(f"Route-tagged rows: {fmt_int(route_linked_rows)} | Stop-tagged rows: {fmt_int(stop_linked_rows)}")
 
 _render_live_updates(manager, route_mode_lookup)
@@ -588,6 +591,8 @@ if not presentation:
         )
 
 next_question_hint("Need technical caveats and data-quality diagnostics? Open: Technical Appendix.")
+
+
 
 
 
