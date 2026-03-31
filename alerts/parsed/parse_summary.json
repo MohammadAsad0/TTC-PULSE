@@ -8,7 +8,7 @@
     "parse_summary_json": "TTC-PULSE/alerts/parsed/parse_summary.json",
     "service_alert_entities_csv": "TTC-PULSE/alerts/parsed/service_alert_entities.csv"
   },
-  "parsed_at": "2026-03-31T15:35:01Z",
+  "parsed_at": "2026-03-31T15:37:08Z",
   "parsed_snapshot_count": 3,
   "protobuf_decode_available": true,
   "rows_emitted": 97,
@@ -22,7 +22,7 @@
     "artifact_path": "TTC-PULSE/alerts/parsed/service_alert_entities.csv",
     "details": "snapshot_count=3; protobuf_decode_available=True; parsed_snapshot_count=3; skipped_existing=0; append_outputs=True; caveats=Protobuf decode failed; fallback parsing attempted. Error: ParseError: 238:5 : Message type \"transit_realtime.Alert\" has no field named \"image\".",
     "log_path": "D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/logs/step3_alerts_sidecar_log.csv",
-    "logged_at": "2026-03-31T15:35:01Z",
+    "logged_at": "2026-03-31T15:37:08Z",
     "row_count": 97,
     "status": "ok_fallback",
     "step": "parse_service_alert_snapshots"
