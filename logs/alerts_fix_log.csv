@@ -1,7 +1,0 @@
-run_at_utc,metric_type,object_name,before_count,after_count,status,details
-2026-03-17T21:27:47Z,row_count,bronze_gtfsrt_entities,0,3,updated,Loaded from alerts/parsed/service_alert_entities.csv via ttc_pulse.alerts.load_parsed_into_bronze
-2026-03-17T21:27:47Z,row_count,silver_gtfsrt_alert_entities,0,3,updated,Normalized from bronze_gtfsrt_entities and materialized to parquet plus DuckDB table
-2026-03-17T21:27:47Z,row_count,fact_gtfsrt_alerts_norm,0,3,updated,Built from silver_gtfsrt_alert_entities parquet and materialized to parquet plus DuckDB table
-2026-03-17T21:27:47Z,row_count,gold_alert_validation,0,3,updated,Built from fact_gtfsrt_alerts_norm and materialized to gold parquet/table
-2026-03-17T21:27:47Z,parse_mode,alerts/parsed/service_alert_entities.csv,,,caveat,Current parsed CSV rows are fallback_binary_metadata only (3 rows)
-2026-03-17T21:27:47Z,dependency_check,google.transit.gtfs_realtime_pb2,,,ok,Import available in local venv during this run

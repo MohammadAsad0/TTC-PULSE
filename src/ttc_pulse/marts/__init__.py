@@ -1,2 +1,0 @@
-"""Gold mart modules."""
-

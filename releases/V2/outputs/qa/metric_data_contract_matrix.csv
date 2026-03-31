@@ -1,5 +1,0 @@
-table_name,composite_score,frequency,severity_p90,regularity_p90,cause_mix_score,mode,notes
-gold_top_offender_ranking,yes,yes,yes,yes,yes,yes,"Stakeholder ranking mart; contains route and station entities."
-gold_route_time_metrics,yes,yes,yes,yes,yes,yes,"Route-level time-sliced mart; used by bus ranking and drill-down."
-gold_station_time_metrics,yes,yes,yes,yes,yes,no,"Station-level time-sliced mart; no mode column by design."
-gold_time_reliability,yes,yes,yes,yes,yes,yes,"Weekday-hour aggregation mart; mode retained for bus vs subway slicing."

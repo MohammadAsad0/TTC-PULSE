@@ -11,6 +11,7 @@ lead_left, lead_right = st.columns([1.2, 1], vertical_alignment="center")
 with lead_left:
     st.subheader("Start here")
     st.markdown("Use the story flow in the sidebar, or jump directly:")
+    st.page_link("pages/00_Dataset_Explorer.py", label="Dataset Explorer")
     st.page_link("pages/01_Story_Overview.py", label="Story Overview")
     st.page_link("pages/02_Recurring_Hotspots.py", label="Recurring Hotspots")
     st.page_link("pages/03_Time_Patterns.py", label="Time Patterns")

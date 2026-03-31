@@ -1,2 +1,1 @@
-"""TTC Pulse package."""
-
+"""TTC Pulse local ingestion and dashboard helpers."""

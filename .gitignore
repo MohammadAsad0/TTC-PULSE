@@ -25,5 +25,7 @@ EOF
 # Large data files
 *.duckdb
 
-*.DS_Store
-__pycache__/
+
+data/
+
+
