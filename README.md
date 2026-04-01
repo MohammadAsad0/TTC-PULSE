@@ -131,4 +131,3 @@ PYTHONPATH=src python -m ttc_pulse.alerts.run_sidecar_cycle --allow-network
 2. `docs/ARCHITECTURE.md`
 3. `docs/TECHDOC.md`
 4. `docs/PROJECT_SCOPE.md`
-5. `docs/STORYLINE.md`
