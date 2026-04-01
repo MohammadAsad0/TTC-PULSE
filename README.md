@@ -1,303 +1,134 @@
 # TTC Pulse
 
-TTC Pulse is a DuckDB + Parquet + Streamlit analytics project for studying TTC reliability using:
-- historical TTC bus delay logs
-- historical TTC subway delay logs
-- static GTFS
-- GTFS-Realtime Service Alerts
+TTC Pulse is a DuckDB + Parquet + Streamlit reliability analytics project for TTC operational data.
 
-The project builds a layered pipeline:
-- `Raw` = immutable source registries
-- `Bronze` = row-preserving extracts with lineage
-- `Silver` = normalized facts, dimensions, alias tables, and GTFS bridge assets
-- `Gold` = stakeholder-facing marts for rankings, trends, heatmaps, alert validation, and hotspot analysis
+Core scope:
+- historical bus delay logs
+- historical subway delay logs
+- static GTFS reference data
+- GTFS-Realtime service alerts
 
-The MVP runtime is:
-- Python
-- DuckDB
-- Parquet
-- Streamlit
+Current branch extensions:
+- streetcar ingestion and some mart coverage
+- AI Explain for major charts
+- AI Chat Bot
 
-Spark is intentionally excluded from the MVP.
+## Canonical Documentation
+
+Active project docs live in `docs/`:
+- `docs/ARCHITECTURE.md`
+- `docs/TECHDOC.md`
+- `docs/PROJECT_SCOPE.md`
+- `docs/STORYLINE.md`
+
+Archived historical material (older docs, reports, releases) is stored outside the repo under `../Project Docs/TTC Pulse Archive/`.
 
 ## Repository Layout
-
-Key folders:
-- `app/` Streamlit dashboard
-- `src/ttc_pulse/` pipeline modules
+- `app/` Streamlit dashboard pages
+- `src/ttc_pulse/` pipeline, marts, dashboard helpers, alerts sidecar
 - `raw/`, `bronze/`, `silver/`, `dimensions/`, `bridge/`, `reviews/`, `gold/` data artifacts
 - `alerts/` GTFS-RT raw snapshots and parsed outputs
+- `logs/` execution logs
+- `outputs/` final metric summaries
 - `data/ttc_pulse.duckdb` local analytical database
-- `docs/` technical documentation and run logs
-- `reports/` QA, freeze, and regression outputs
+- `docs/` active project docs (this repo)
 
-## Prerequisites
+## Environment
 
-- Python `3.11+`
-- `git`
-- internet access only if you want to poll live GTFS-RT alerts
-
-## Clone and Environment Setup
-
+Recommended stable interpreter in this workspace:
 ```bash
-git clone https://github.com/MohammadAsad0/TTC-PULSE.git
-cd TTC-PULSE/ttc_pulse
+cd ttc_pulse
+PYTHONPATH=src ../.venv-ttc/bin/python -m streamlit run app/streamlit_app.py
+```
 
+Fresh local env (if needed):
+```bash
+cd ttc_pulse
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-All commands below assume:
-- you are inside the `ttc_pulse/` folder
-- your virtual environment is activated
+## Data Layout
 
-## Required Data Layout
-
-The ingestion code resolves datasets from a sibling folder named `datasets/`.
-
-Expected workspace layout:
-
-```text
-TTC-PULSE/
+The pipeline expects datasets in a sibling `datasets/` folder:
+```
+Project/
 |-- datasets/
 |   |-- 01_gtfs_merged/
-|   |   |-- routes.txt
-|   |   |-- trips.txt
-|   |   |-- stop_times.txt
-|   |   |-- stops.txt
-|   |   |-- calendar.txt
-|   |   |-- calendar_dates.txt
-|   |   `-- shapes.txt
 |   |-- 02_bus_delay/
-|   |   `-- csv/
 |   `-- 03_subway_delay/
-|       `-- csv/
 `-- ttc_pulse/
 ```
 
-Notes:
-- `datasets/` must be next to `ttc_pulse/`, not inside it.
-- Bus ingestion expects files under `datasets/02_bus_delay/csv`.
-- Subway ingestion expects files under `datasets/03_subway_delay/csv`.
-- GTFS ingestion expects files under `datasets/01_gtfs_merged`.
-- GTFS-RT snapshot polling writes into `ttc_pulse/alerts/raw_snapshots/`.
+GTFS-RT snapshots land in `alerts/raw_snapshots/`.
 
 ## Quick Start
 
-If you want the full local build from raw data to dashboard:
-
-Before launching Streamlit, create a `.env` file in the project root:
-
-```env
-OPENAI_API_KEY=your_openai_api_key_here
-OPENAI_MODEL=gpt-5.4-mini
+If Gold outputs already exist:
+```bash
+cd ttc_pulse
+PYTHONPATH=src ../.venv-ttc/bin/python -m streamlit run app/streamlit_app.py
 ```
 
-Then run:
-
+Full pipeline then dashboard:
 ```bash
+cd ttc_pulse
 export PYTHONPATH=src
-python -m ttc_pulse.bronze.build_bronze_tables
-python -m ttc_pulse.gtfs.build_dimensions
-python -m ttc_pulse.gtfs.build_bridge
-python -m ttc_pulse.aliasing.build_route_alias
-python -m ttc_pulse.aliasing.build_station_alias
-python -m ttc_pulse.aliasing.build_incident_code_dim
-python -m ttc_pulse.aliasing.build_review_tables
-python -m ttc_pulse.normalization.normalize_bus
-python -m ttc_pulse.normalization.normalize_subway
-python -m ttc_pulse.normalization.normalize_gtfsrt_entities
-python -m ttc_pulse.facts.build_fact_delay_events_norm
-python -m ttc_pulse.facts.build_fact_gtfsrt_alerts_norm
-python -m ttc_pulse.normalization.register_step2_tables
-python -m ttc_pulse.marts.build_gold_rankings
-streamlit run app/streamlit_app.py
+python -m ttc_pulse.pipeline.load_dataset
+python -m streamlit run app/streamlit_app.py
 ```
 
-If the Gold parquet outputs are already present in the repo or your local copy, you can often skip directly to:
+## Manual Build Order
 
+Step 1:
 ```bash
-streamlit run app/streamlit_app.py
+PYTHONPATH=src python -m ttc_pulse.bronze.build_bronze_tables
 ```
 
-## Step-by-Step Execution
-
-### 1. Build Raw and Bronze
-
+Step 2:
 ```bash
-export PYTHONPATH=src
-python -m ttc_pulse.bronze.build_bronze_tables
+PYTHONPATH=src python -m ttc_pulse.gtfs.build_dimensions
+PYTHONPATH=src python -m ttc_pulse.gtfs.build_bridge
+PYTHONPATH=src python -m ttc_pulse.aliasing.build_route_alias
+PYTHONPATH=src python -m ttc_pulse.aliasing.build_station_alias
+PYTHONPATH=src python -m ttc_pulse.aliasing.build_incident_code_dim
+PYTHONPATH=src python -m ttc_pulse.aliasing.build_review_tables
+PYTHONPATH=src python -m ttc_pulse.normalization.normalize_bus
+PYTHONPATH=src python -m ttc_pulse.normalization.normalize_streetcar
+PYTHONPATH=src python -m ttc_pulse.normalization.normalize_subway
+PYTHONPATH=src python -m ttc_pulse.normalization.normalize_gtfsrt_entities
+PYTHONPATH=src python -m ttc_pulse.facts.build_fact_delay_events_norm
+PYTHONPATH=src python -m ttc_pulse.facts.build_fact_gtfsrt_alerts_norm
+PYTHONPATH=src python -m ttc_pulse.normalization.register_step2_tables
 ```
 
-This creates:
-- raw registries in `raw/`
-- Bronze parquet outputs in `bronze/`
-- source inventory and step summary docs
-- `data/ttc_pulse.duckdb`
-
-Important outputs:
-- `logs/ingestion_log.csv`
-- `docs/source_inventory.md`
-- `docs/step1_summary.md`
-
-### 2. Build Silver, Dimensions, Bridge, and Reviews
-
-Run in this order:
-
+Step 3:
 ```bash
-export PYTHONPATH=src
-python -m ttc_pulse.gtfs.build_dimensions
-python -m ttc_pulse.gtfs.build_bridge
-python -m ttc_pulse.aliasing.build_route_alias
-python -m ttc_pulse.aliasing.build_station_alias
-python -m ttc_pulse.aliasing.build_incident_code_dim
-python -m ttc_pulse.aliasing.build_review_tables
-python -m ttc_pulse.normalization.normalize_bus
-python -m ttc_pulse.normalization.normalize_subway
-python -m ttc_pulse.normalization.normalize_gtfsrt_entities
-python -m ttc_pulse.facts.build_fact_delay_events_norm
-python -m ttc_pulse.facts.build_fact_gtfsrt_alerts_norm
-python -m ttc_pulse.normalization.register_step2_tables
+PYTHONPATH=src python -m ttc_pulse.marts.build_gold_rankings
 ```
 
-Important outputs:
-- `silver/*.parquet`
-- `dimensions/*.parquet`
-- `bridge/*.parquet`
-- `reviews/*.parquet`
-- `logs/step2_registration_log.csv`
+## Live Alerts
 
-### 3. Build Gold Marts
-
+Poll once:
 ```bash
-export PYTHONPATH=src
-python -m ttc_pulse.marts.build_gold_rankings
+PYTHONPATH=src python -m ttc_pulse.alerts.poll_service_alerts --allow-network --register-manifest
 ```
 
-This orchestrates the Gold build and writes:
-- `gold/gold_delay_events_core.parquet`
-- `gold/gold_linkage_quality.parquet`
-- `gold/gold_route_time_metrics.parquet`
-- `gold/gold_station_time_metrics.parquet`
-- `gold/gold_time_reliability.parquet`
-- `gold/gold_top_offender_ranking.parquet`
-- `gold/gold_alert_validation.parquet`
-- `gold/gold_spatial_hotspot.parquet`
-
-Important outputs:
-- `logs/step3_gold_build_log.csv`
-- `outputs/final_metrics_summary.md`
-
-### 4. Launch the Dashboard
-
-Make sure `.env` exists in the project root before this step (`OPENAI_API_KEY` and `OPENAI_MODEL`).
-
+Parse snapshots:
 ```bash
-export PYTHONPATH=src
-streamlit run app/streamlit_app.py
+PYTHONPATH=src python -m ttc_pulse.alerts.parse_service_alerts
 ```
 
-Default local URL:
-- [http://localhost:8501](http://localhost:8501)
-
-## GTFS-RT Alerts
-
-### Poll live Service Alerts once
-
+Full sidecar cycle:
 ```bash
-export PYTHONPATH=src
-python -m ttc_pulse.alerts.poll_service_alerts --allow-network --register-manifest
+PYTHONPATH=src python -m ttc_pulse.alerts.run_sidecar_cycle --allow-network
 ```
 
-### Parse local GTFS-RT snapshots
-
-```bash
-export PYTHONPATH=src
-python -m ttc_pulse.alerts.parse_service_alerts
-```
-
-### Test mode without relying on live collection
-
-```bash
-export PYTHONPATH=src
-python -m ttc_pulse.alerts.poll_service_alerts --test-mode --register-manifest
-python -m ttc_pulse.alerts.parse_service_alerts
-```
-
-Outputs land in:
-- `alerts/raw_snapshots/`
-- `alerts/parsed/`
-
-## Verification
-
-Useful files to inspect after a run:
-- `logs/ingestion_log.csv`
-- `logs/step2_registration_log.csv`
-- `logs/step3_gold_build_log.csv`
-- `outputs/final_metrics_summary.md`
-- `docs/step1_summary.md`
-- `docs/step2_summary.md`
-- `docs/step3_summary.md`
-
-## Known Runtime Notes
-
-- The dashboard reads from DuckDB first and falls back to Gold parquet files when needed.
-- `gold_alert_validation` can be empty if no normalized GTFS-RT alert facts exist yet.
-- `gold_spatial_hotspot` is confidence-gated; if the gate fails, the hotspot page may have limited or deferred outputs.
-- Bus spatial hotspots in the current MVP are provisional route-centroid views, not precise incident geocodes.
-
-## Documentation
-
-For more detail:
-- [Runbook](docs/runbook.md): operational steps to run, refresh, troubleshoot, and recover the pipelines/dashboard.
-- [Architecture](docs/architecture.md): system design, data flow across raw/bronze/silver/gold, and component responsibilities.
-- [Data Dictionary](docs/data_dictionary.md): table/column definitions, metric meanings, and key assumptions.
-
-## Current Dashboard Scope
-
-The current dashboard includes:
-- Reliability Overview
-- Bus Route Ranking
-- Subway Station Ranking
-- Weekday Hour Heatmap
-- Monthly Trends
-- Cause Category Mix
-- Live Alert Validation
-- Spatial Hotspot Map
-- Bus Reliability Drill-Down
-- Subway Reliability Drill-Down
-- AI-chat bot
-
-## AI Chat Bot
-
-A dashboard page named **AI-chat bot** is available from the app sidebar.
-
-### OpenAI setup
-
-1. Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-2. Create a `.env` file in the project root:
-
-```env
-OPENAI_API_KEY=your_openai_api_key_here
-OPENAI_MODEL=gpt-5.4-mini
-```
-
-### Recommended model
-
-- `gpt-5.4-mini` (recommended default): better cost/latency for interactive dashboard chat.
-- `gpt-5.4`: higher quality for deeper analysis and longer reasoning.
-
-The chatbot uses the loaded TTC dataset context (DuckDB/parquet Gold tables) to answer:
-- reliability pattern questions
-- practical data-driven mitigation ideas
-- forward-looking delay risk discussions (with explicit assumptions)
-
-
-
+## Suggested Read Order For New Contributors
+1. `README.md`
+2. `docs/ARCHITECTURE.md`
+3. `docs/TECHDOC.md`
+4. `docs/PROJECT_SCOPE.md`
+5. `docs/STORYLINE.md`
