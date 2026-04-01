@@ -1,7 +1,7 @@
 # TTC Pulse Architecture
 
 ## Purpose
-System-level architecture note for TTC Pulse: local-first transit reliability analytics using bus/subway delay logs, static GTFS, and GTFS-RT alerts. Streetcar and AI features exist as extensions; bus + subway + GTFS + alerts remain the core.
+System-level architecture for TTC Pulse: local-first transit reliability analytics using bus/subway delay logs, static GTFS, and GTFS-RT alerts. Streetcar and AI features exist as extensions; bus + subway + GTFS + alerts remain the core.
 
 ## Simple Diagram
 ```mermaid
