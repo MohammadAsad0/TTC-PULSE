@@ -15,9 +15,9 @@ Current branch extensions:
 
 ## Canonical Documentation
 Active project docs live in `docs/`:
-- `docs/ARCHITECTURE.md`
-- `docs/TECHDOC.md`
-- `docs/PROJECT_SCOPE.md`
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- [`docs/TECHDOC.md`](docs/TECHDOC.md)
+- [`docs/PROJECT_SCOPE.md`](docs/PROJECT_SCOPE.md)
 
 ## Repository Layout
 - `app/` Streamlit dashboard pages
@@ -124,6 +124,6 @@ PYTHONPATH=src python -m ttc_pulse.alerts.run_sidecar_cycle --allow-network
 
 ## Suggested Read Order For New Contributors
 1. `README.md`
-2. `docs/ARCHITECTURE.md`
-3. `docs/TECHDOC.md`
-4. `docs/PROJECT_SCOPE.md`
+2. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+3. [`docs/TECHDOC.md`](docs/TECHDOC.md)
+4. [`docs/PROJECT_SCOPE.md`](docs/PROJECT_SCOPE.md)
