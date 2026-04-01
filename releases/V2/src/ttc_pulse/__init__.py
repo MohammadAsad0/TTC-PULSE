@@ -1,2 +1,0 @@
-"""TTC Pulse package."""
-
