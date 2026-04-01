@@ -14,21 +14,17 @@ Current branch extensions:
 - AI Chat Bot
 
 ## Canonical Documentation
-
 Active project docs live in `docs/`:
 - `docs/ARCHITECTURE.md`
 - `docs/TECHDOC.md`
 - `docs/PROJECT_SCOPE.md`
-- `docs/STORYLINE.md`
-
-Archived historical material (older docs, reports, releases) is stored outside the repo under `../Project Docs/TTC Pulse Archive/`.
 
 ## Repository Layout
 - `app/` Streamlit dashboard pages
 - `src/ttc_pulse/` pipeline, marts, dashboard helpers, alerts sidecar
 - `raw/`, `bronze/`, `silver/`, `dimensions/`, `bridge/`, `reviews/`, `gold/` data artifacts
 - `alerts/` GTFS-RT raw snapshots and parsed outputs
-- `logs/` execution logs
+- `logs/` execution logs (stores locally for privacy)
 - `outputs/` final metric summaries
 - `data/ttc_pulse.duckdb` local analytical database
 - `docs/` active project docs (this repo)
