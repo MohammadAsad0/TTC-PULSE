@@ -15,4 +15,5 @@ __pycache__/
 alerts/raw_snapshots/*.pb
 logs/*.log
 logs/*.lock
+logs/
 outputs/processed/
