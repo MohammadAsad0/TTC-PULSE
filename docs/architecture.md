@@ -116,4 +116,5 @@ Gold: `gold_delay_events_core`, `gold_route_time_metrics`, `gold_station_time_me
 ## Runtime Summary
 - DuckDB for SQL; Parquet for artifacts
 - Streamlit for UI
-- Local sidecar for GTFS-RT polling; Airflow not used
+- Local sidecar for GTFS-RT polling; 
+

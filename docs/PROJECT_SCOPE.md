@@ -30,23 +30,24 @@
 | Explainable metrics | Delivered | Frequency, severity, regularity, cause mix |
 | Route/station ranking | Delivered | Stakeholder value |
 | Temporal pattern analysis | Delivered | Stakeholder value |
-| Live GTFS-RT validation | Delivered materially | Current branch improvement |
+| Live GTFS-RT validation | Delivered  | Validates history |
 | Spatial hotspot analysis | Partial | Stronger for subway than bus |
-| Full H3 citywide hotspots | Not fully delivered | Do not overclaim |
+| Full H3 citywide hotspots | Not fully delivered | Optional |
 | Traffic extension | Not delivered | Optional |
-| AI features | Delivered as extension | Not core thesis |
+| AI features | Delivered as extension | Stakeholder value |
 
 ## Strengths
 - integrated multi-source reliability view
 - route-first and station-first framing
 - explainable scoring
 - live-alert validation layer
-
-## Cautions
 - bus spatial precision
 - fully linked dashboard interactions
-- AI as main contribution
-- streetcar as core scope
+- AI contribution
+- streetcar scope
 
-## Positioning
+## Objective
 Decision-support reliability observatory turning noisy TTC operational data into route, station, time, cause, and live-alert intelligence.
+
+## Schedulers for Realtime Alerts
+Airflow's application was heavy and not aligned to our project, local schedulers (launchd) used instead.

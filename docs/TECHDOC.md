@@ -1,7 +1,7 @@
 # TTC Pulse Technical Document
 
 ## Purpose
-Code-first onboarding for teammates: what to read, how the pipeline runs, what DuckDB does, and how the dashboard consumes the marts.
+Code-first doc for teammates: what to read, how the pipeline runs, what DuckDB does, and how the dashboard consumes the marts.
 
 ## Read Order
 1. `README.md`
