@@ -24,7 +24,9 @@ _bootstrap_src_path()
 from ttc_pulse.dashboard.formatting import fmt_float, fmt_int
 from ttc_pulse.dashboard.ai_explain import render_ai_explain_block
 from ttc_pulse.dashboard.loaders import query_table
-from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector
+from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector, sync_dashboard_data_cache
+
+sync_dashboard_data_cache()
 
 ALL_MODES = ("bus", "streetcar", "subway")
 METRIC_DISPLAY_NAMES = {
@@ -383,3 +385,5 @@ if presentation:
     st.caption("Presentation mode keeps only summary evidence. Switch to Exploration for full tables and controls.")
 
 next_question_hint("Which routes/stations repeatedly dominate risk? Open: Recurring Hotspots.")
+
+

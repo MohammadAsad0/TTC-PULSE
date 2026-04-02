@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+import re
 from typing import Any
 
 from ttc_pulse.utils.project_setup import (
@@ -70,6 +71,35 @@ def _pick_first_existing(base_root: Path, relative_candidates: list[str]) -> Pat
     return None
 
 
+def _normalized_name_parts(path: Path) -> list[str]:
+    stem = re.sub(r"[^a-z0-9]+", "_", path.stem.lower()).strip("_")
+    return [part for part in stem.split("_") if part]
+
+
+def _matches_table_token(path: Path, table_name: str) -> bool:
+    parts = _normalized_name_parts(path)
+    if not parts:
+        return False
+    if table_name == "calendar":
+        return "calendar" in parts and "dates" not in parts
+    if table_name == "calendar_dates":
+        return "calendar" in parts and "dates" in parts
+    token_parts = table_name.split("_")
+    return all(token in parts for token in token_parts)
+
+
+def _pick_by_table_keyword(base_root: Path, table_name: str) -> Path | None:
+    candidates = [
+        path.resolve()
+        for path in base_root.rglob("*")
+        if path.is_file() and path.suffix.lower() in {".txt", ".csv"} and _matches_table_token(path, table_name)
+    ]
+    if not candidates:
+        return None
+    candidates.sort(key=lambda p: (len(p.parts), len(p.name), p.name.lower()))
+    return candidates[0]
+
+
 def discover_gtfs_files() -> dict[str, Any]:
     """Resolve required and optional GTFS files from data/gtfs (legacy fallback supported)."""
     paths = resolve_project_paths()
@@ -82,6 +112,8 @@ def discover_gtfs_files() -> dict[str, Any]:
     for table_name, candidates in GTFS_REQUIRED_FILE_CANDIDATES.items():
         selected = _pick_first_existing(source_root, candidates)
         if selected is None:
+            selected = _pick_by_table_keyword(source_root, table_name)
+        if selected is None:
             missing_required.append(table_name)
         else:
             required[table_name] = selected
@@ -89,6 +121,8 @@ def discover_gtfs_files() -> dict[str, Any]:
     optional: dict[str, Path] = {}
     for table_name, candidates in GTFS_OPTIONAL_FILE_CANDIDATES.items():
         selected = _pick_first_existing(source_root, candidates)
+        if selected is None:
+            selected = _pick_by_table_keyword(source_root, table_name)
         if selected is not None:
             optional[table_name] = selected
 

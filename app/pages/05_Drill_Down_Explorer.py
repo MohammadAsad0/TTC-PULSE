@@ -25,7 +25,9 @@ from ttc_pulse.dashboard.formatting import DAY_NAME_ORDER, fmt_float, fmt_int
 from ttc_pulse.dashboard.ai_explain import render_ai_explain_block
 from ttc_pulse.dashboard.loaders import query_table
 from ttc_pulse.dashboard.metric_config import METRIC_OPTIONS, metric_axis_title, metric_selector_help_text, resolve_metric_choice
-from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector
+from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector, sync_dashboard_data_cache
+
+sync_dashboard_data_cache()
 from ttc_pulse.utils.project_setup import resolve_project_paths
 
 
@@ -616,6 +618,8 @@ if ranking_result.status == "empty" or ranking_result.frame.empty:
     st.stop()
 
 ranking = ranking_result.frame.copy()
+ranking["entity_id"] = ranking["entity_id"].astype(str).str.strip()
+ranking = ranking[ranking["entity_id"] != ""].copy()
 metric_resolution = resolve_metric_choice(ranking, selected_metric_label)
 if metric_resolution.fallback_used and metric_resolution.message:
     st.info(metric_resolution.message)
@@ -623,7 +627,9 @@ metric_column = metric_resolution.resolved_column
 metric_title = metric_resolution.resolved_label
 
 ranking = ranking.sort_values([metric_column, "rank_position"], ascending=[False, True])
-entity_options = ranking["entity_id"].astype(str).tolist()
+entity_options = ranking["entity_id"].astype(str).str.strip().tolist()
+entity_options = [entity for entity in entity_options if entity]
+entity_options = list(dict.fromkeys(entity_options))
 default_entity = entity_options[0]
 bus_route_labels: dict[str, str] = {}
 if selected_mode in {"bus", "streetcar"} or (selected_mode == "subway" and subway_scope == "line"):
@@ -633,12 +639,14 @@ if selected_mode in {"bus", "streetcar"} or (selected_mode == "subway" and subwa
         route_id = str(getattr(row, "route_id", "")).strip()
         if not route_id:
             continue
-        route_short_name = str(getattr(row, "route_short_name", "")).strip() or route_id
+        route_short_name = str(getattr(row, "route_short_name", "")).strip()
         route_long_name = str(getattr(row, "route_long_name", "")).strip()
+        label = f"{prefix} {route_id}"
+        if route_short_name and route_short_name != route_id:
+            label = f"{label} ({route_short_name})"
         if route_long_name:
-            bus_route_labels[route_id] = f"{prefix} {route_short_name} - {route_long_name}"
-        else:
-            bus_route_labels[route_id] = f"{prefix} {route_short_name}"
+            label = f"{label} - {route_long_name}"
+        bus_route_labels[route_id] = label
 bus_label_to_route = {label: route_id for route_id, label in bus_route_labels.items()}
 entity_state_key = f"drill_selected_entity_{selected_mode}"
 entity_select_key = f"drill_entity_select_{selected_mode}"
@@ -1073,5 +1081,7 @@ if not presentation:
         st.dataframe(year_frame, use_container_width=True, hide_index=True)
 
 next_question_hint("Do live alerts currently align with historical hotspots? Open: Live Alert Alignment.")
+
+
 
 

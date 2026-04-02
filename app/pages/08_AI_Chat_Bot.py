@@ -25,7 +25,10 @@ def _bootstrap_src_path() -> None:
 _bootstrap_src_path()
 
 from ttc_pulse.dashboard.loaders import query_table
+from ttc_pulse.dashboard.storytelling import sync_dashboard_data_cache
 from ttc_pulse.utils.project_setup import resolve_project_paths
+
+sync_dashboard_data_cache()
 
 try:
     from dotenv import load_dotenv
@@ -77,11 +80,29 @@ def _extract_route_tokens(question: str) -> list[str]:
     return tokens[:5]
 
 
+def _extract_station_tokens(question: str) -> list[str]:
+    q = question.lower()
+    tokens: list[str] = []
+
+    for match in re.findall(r"([a-z0-9' -]{2,}?)\s+station\b", q, flags=re.IGNORECASE):
+        token = re.sub(r"\s+", " ", str(match)).strip(" -")
+        token = re.sub(r"\b(the|at|in|for|near|about|tell|me|show|what|is|of|on|please|how|do|does|can|could)\b", " ", token, flags=re.IGNORECASE)
+        token = re.sub(r"\s+", " ", token).strip()
+        words = [word for word in token.split(" ") if word]
+        if len(words) > 3:
+            token = " ".join(words[-3:])
+        if token and token not in tokens:
+            tokens.append(token)
+
+    return tokens[:5]
+
+
 @st.cache_data(ttl=120)
 def _build_question_specific_context(question: str) -> str:
     route_tokens = _extract_route_tokens(question)
-    if not route_tokens:
-        return "No route-specific lookup requested."
+    station_tokens = _extract_station_tokens(question)
+    if not route_tokens and not station_tokens:
+        return "No route/station-specific lookup requested."
 
     parts: list[str] = []
 
@@ -132,7 +153,6 @@ def _build_question_specific_context(question: str) -> str:
                 parts.append(_frame_to_compact_csv(route_yearly.frame, max_rows=100))
             continue
 
-        # Fallback to silver bus events to prove raw-like presence even when GTFS linkage is missing.
         silver_path = resolve_project_paths().project_root / "silver" / "silver_bus_events.parquet"
         if silver_path.exists():
             connection = duckdb.connect(":memory:")
@@ -168,8 +188,71 @@ def _build_question_specific_context(question: str) -> str:
         else:
             parts.append(f"No records matched route token {route_token} in Gold route metrics, and silver bus events parquet is missing.")
 
-    return "\n".join(parts) if parts else "No route-specific lookup results were found."
+    for station_token in station_tokens:
+        station_gold = query_table(
+            table_name="gold_station_time_metrics",
+            query_template="""
+            SELECT
+                station_canonical,
+                MIN(service_date) AS min_service_date,
+                MAX(service_date) AS max_service_date,
+                SUM(frequency)::BIGINT AS frequency,
+                quantile_cont(severity_p90, 0.9) FILTER (WHERE severity_p90 IS NOT NULL) AS severity_p90,
+                AVG(composite_score) FILTER (WHERE composite_score IS NOT NULL) AS composite_score
+            FROM {source}
+            WHERE station_canonical IS NOT NULL
+                AND UPPER(station_canonical) LIKE UPPER(?)
+            GROUP BY 1
+            ORDER BY frequency DESC, station_canonical
+            LIMIT 30
+            """,
+            params=[f"%{station_token}%"],
+        )
 
+        if station_gold.status == "ok" and not station_gold.frame.empty:
+            parts.append(f"Station-specific Gold metrics for token '{station_token}':")
+            parts.append(_frame_to_compact_csv(station_gold.frame, max_rows=50))
+            continue
+
+        silver_subway_path = resolve_project_paths().project_root / "silver" / "silver_subway_events.parquet"
+        if silver_subway_path.exists():
+            connection = duckdb.connect(":memory:")
+            try:
+                safe_path = silver_subway_path.as_posix().replace("'", "''")
+                silver_station = connection.execute(
+                    f"""
+                    SELECT
+                        COALESCE(NULLIF(station_canonical, ''), NULLIF(station_text_raw, ''), 'UNKNOWN') AS station_key,
+                        COUNT(*)::BIGINT AS rows_found,
+                        MIN(service_date) AS min_service_date,
+                        MAX(service_date) AS max_service_date
+                    FROM read_parquet('{safe_path}')
+                    WHERE UPPER(COALESCE(station_canonical, '')) LIKE UPPER(?)
+                        OR UPPER(COALESCE(station_text_raw, '')) LIKE UPPER(?)
+                    GROUP BY 1
+                    ORDER BY rows_found DESC, station_key
+                    LIMIT 30
+                    """,
+                    [f"%{station_token}%", f"%{station_token}%"],
+                ).df()
+            except Exception:
+                silver_station = pd.DataFrame()
+            finally:
+                connection.close()
+
+            if not silver_station.empty:
+                parts.append(f"Station token '{station_token}' found in silver subway events (raw-derived):")
+                parts.append(_frame_to_compact_csv(silver_station, max_rows=30))
+            else:
+                parts.append(
+                    f"No records matched station token '{station_token}' in Gold station metrics or silver subway events."
+                )
+        else:
+            parts.append(
+                f"No records matched station token '{station_token}' in Gold station metrics, and silver subway events parquet is missing."
+            )
+
+    return "\n".join(parts) if parts else "No route/station-specific lookup results were found."
 
 @st.cache_data(ttl=300)
 def _build_dataset_context() -> str:
@@ -282,6 +365,20 @@ def _build_dataset_context() -> str:
         context_chunks.append("Top subway stations by frequency:")
         context_chunks.append(_frame_to_compact_csv(top_stations.frame))
 
+
+    station_catalog = query_table(
+        table_name="gold_station_time_metrics",
+        query_template="""
+        SELECT DISTINCT station_canonical
+        FROM {source}
+        WHERE station_canonical IS NOT NULL
+        ORDER BY station_canonical
+        LIMIT 500
+        """,
+    )
+    if station_catalog.status in {"ok", "empty"} and not station_catalog.frame.empty:
+        context_chunks.append("Subway station catalog (distinct canonical names):")
+        context_chunks.append(_frame_to_compact_csv(station_catalog.frame, max_rows=500))
     if not context_chunks:
         return (
             "No Gold dataset context is available in DuckDB/parquet right now. "

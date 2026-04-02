@@ -25,7 +25,9 @@ _bootstrap_src_path()
 from ttc_pulse.alerts.live_alert_scheduler import DEFAULT_FEED_URLS, LiveAlertPollingManager
 from ttc_pulse.dashboard.formatting import fmt_int, fmt_pct
 from ttc_pulse.dashboard.loaders import query_table
-from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector
+from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector, sync_dashboard_data_cache
+
+sync_dashboard_data_cache()
 from ttc_pulse.utils.project_setup import resolve_project_paths
 
 
@@ -591,6 +593,8 @@ if not presentation:
         )
 
 next_question_hint("Need technical caveats and data-quality diagnostics? Open: Technical Appendix.")
+
+
 
 
 

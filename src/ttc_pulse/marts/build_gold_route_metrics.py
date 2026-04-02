@@ -8,7 +8,6 @@ from typing import Any
 
 from ttc_pulse.marts._gold_utils import (
     create_delay_events_view,
-    ensure_table_from_parquet,
     materialize_query_to_gold,
 )
 from ttc_pulse.marts.scoring import DEFAULT_SCORE_WEIGHTS, composite_score_sql, validate_weights
@@ -28,37 +27,33 @@ def _build_query() -> str:
         weights=DEFAULT_SCORE_WEIGHTS,
     )
     return f"""
-    WITH route_reference AS (
-        SELECT DISTINCT route_id, LOWER(COALESCE(route_mode, '')) AS route_mode
-        FROM dim_route_gtfs
-        WHERE LOWER(COALESCE(route_mode, '')) IN ('bus', 'streetcar')
-            AND route_id IS NOT NULL
-    ),
-    base AS (
+    WITH base AS (
         SELECT
             mode,
-            route_id_gtfs,
+            CASE
+                WHEN LOWER(COALESCE(mode, '')) = 'subway' THEN COALESCE(route_id_gtfs, line_code_norm)
+                ELSE COALESCE(route_id_gtfs, route_short_name_norm)
+            END AS route_id_gtfs,
             service_date,
             hour_bin,
             incident_category,
             min_delay,
             min_gap
         FROM delay_events_src
-        WHERE route_id_gtfs IS NOT NULL
-            AND service_date IS NOT NULL
+        WHERE service_date IS NOT NULL
             AND hour_bin IS NOT NULL
             AND (
-                LOWER(COALESCE(mode, '')) NOT IN ('bus', 'streetcar')
-                OR (
-                    LOWER(COALESCE(link_status, '')) = 'matched'
-                    AND EXISTS (
-                        SELECT 1
-                        FROM route_reference rr
-                        WHERE rr.route_id = route_id_gtfs
-                            AND rr.route_mode = LOWER(COALESCE(mode, ''))
-                    )
-                )
-            )
+                CASE
+                    WHEN LOWER(COALESCE(mode, '')) = 'subway' THEN COALESCE(route_id_gtfs, line_code_norm)
+                    ELSE COALESCE(route_id_gtfs, route_short_name_norm)
+                END
+            ) IS NOT NULL
+            AND TRIM(
+                CASE
+                    WHEN LOWER(COALESCE(mode, '')) = 'subway' THEN COALESCE(route_id_gtfs, line_code_norm)
+                    ELSE COALESCE(route_id_gtfs, route_short_name_norm)
+                END
+            ) <> ''
     ),
     metrics AS (
         SELECT
@@ -151,7 +146,6 @@ def run_build_gold_route_metrics(
 
     connection = ensure_duckdb_connection(resolved_db_path)
     try:
-        ensure_table_from_parquet(connection, "dim_route_gtfs", paths.project_root, caveats)
         source_info = create_delay_events_view(connection, paths.project_root, caveats)
         filtered_rows = connection.execute(
             """

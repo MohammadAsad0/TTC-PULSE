@@ -1,19 +1,19 @@
 # Final Metrics Summary
 
-Generated at (UTC): 2026-03-28T23:34:11Z
+Generated at (UTC): 2026-04-02T21:02:53Z
 
 ## Gold Row Counts
 
 | Table | Row count | Status |
 |---|---:|---|
-| gold_delay_events_core | 1161120 | built |
-| gold_linkage_quality | 1334 | built |
-| gold_route_time_metrics | 889566 | built |
-| gold_station_time_metrics | 197434 | built |
+| gold_delay_events_core | 1161028 | built |
+| gold_linkage_quality | 1327 | built |
+| gold_route_time_metrics | 949686 | built |
+| gold_station_time_metrics | 238061 | built |
 | gold_time_reliability | 504 | built |
-| gold_top_offender_ranking | 281 | built |
-| gold_alert_validation | 3252 | built |
-| gold_spatial_hotspot | 69 | built |
+| gold_top_offender_ranking | 355 | built |
+| gold_alert_validation | 5984 | built |
+| gold_spatial_hotspot | 72 | built |
 
 ## Composite Scoring Policy
 

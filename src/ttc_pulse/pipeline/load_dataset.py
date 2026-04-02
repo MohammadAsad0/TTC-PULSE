@@ -1,9 +1,11 @@
-﻿"""Run a full raw-to-gold dataset load for local TTC Pulse artifacts."""
+"""Run a full raw-to-gold dataset load for local TTC Pulse artifacts."""
 
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import time
 from typing import Any
 
 from ttc_pulse.aliasing.build_incident_code_dim import run as run_build_incident_code_dim
@@ -40,27 +42,81 @@ def _safe_row_count(result: dict[str, Any], fallback_keys: list[str] | None = No
     return 0
 
 
+def _acquire_load_lock(lock_path: Path, timeout_seconds: int = 300) -> int:
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.time() + max(timeout_seconds, 1)
+    while True:
+        try:
+            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_RDWR)
+            os.write(fd, str(os.getpid()).encode("utf-8"))
+            return fd
+        except FileExistsError:
+            if time.time() >= deadline:
+                raise TimeoutError(
+                    f"Dataset load lock is busy: {lock_path.as_posix()} (waited {timeout_seconds}s)"
+                )
+            time.sleep(1.0)
+
+
+def _release_load_lock(lock_fd: int, lock_path: Path) -> None:
+    try:
+        os.close(lock_fd)
+    finally:
+        try:
+            lock_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
+def _is_write_conflict(exc: Exception) -> bool:
+    text = f"{type(exc).__name__}: {exc}".lower()
+    return ("write-write conflict" in text) or ("transactioncontext error" in text and "conflict" in text)
+
+
 def run_load_dataset(db_path: Path | None = None) -> dict[str, Any]:
     """Execute the full raw CSV -> parquet + DuckDB build sequence."""
     started_at = utc_now_iso()
     paths = resolve_project_paths()
     resolved_db_path = (db_path or paths.db_path).resolve()
 
-    step1 = run_step1()
-    dim = run_build_dimensions()
-    bridge = run_build_bridge()
-    route_alias = run_build_route_alias()
-    station_alias = run_build_station_alias()
-    incident_code = run_build_incident_code_dim()
-    reviews = run_build_review_tables()
-    bus = run_normalize_bus(db_path=resolved_db_path)
-    streetcar = run_normalize_streetcar(db_path=resolved_db_path)
-    subway = run_normalize_subway(db_path=resolved_db_path)
-    gtfsrt_entities = run_normalize_gtfsrt_entities(db_path=resolved_db_path)
-    fact_delay = run_build_fact_delay_events_norm()
-    fact_alerts = run_build_fact_gtfsrt_alerts_norm(db_path=resolved_db_path)
-    step2_registration = run_register_step2_tables(db_path=resolved_db_path)
-    gold = run_build_all_gold_marts(db_path=resolved_db_path)
+    lock_path = (paths.project_root / ".locks" / "dataset_load.lock").resolve()
+    lock_fd = _acquire_load_lock(lock_path, timeout_seconds=300)
+
+    try:
+        max_attempts = 6
+        last_conflict_text: str | None = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                step1 = run_step1()
+                dim = run_build_dimensions()
+                bridge = run_build_bridge()
+                route_alias = run_build_route_alias()
+                station_alias = run_build_station_alias()
+                incident_code = run_build_incident_code_dim()
+                reviews = run_build_review_tables()
+                bus = run_normalize_bus(db_path=resolved_db_path)
+                streetcar = run_normalize_streetcar(db_path=resolved_db_path)
+                subway = run_normalize_subway(db_path=resolved_db_path)
+                gtfsrt_entities = run_normalize_gtfsrt_entities(db_path=resolved_db_path)
+                fact_delay = run_build_fact_delay_events_norm()
+                fact_alerts = run_build_fact_gtfsrt_alerts_norm(db_path=resolved_db_path)
+                step2_registration = run_register_step2_tables(db_path=resolved_db_path)
+                gold = run_build_all_gold_marts(db_path=resolved_db_path)
+                break
+            except Exception as exc:
+                if not _is_write_conflict(exc):
+                    raise
+                last_conflict_text = f"{type(exc).__name__}: {exc}"
+                if attempt >= max_attempts:
+                    raise RuntimeError(
+                        "Dataset load could not acquire a stable writer transaction in DuckDB. "
+                        "Another process is likely writing to the same database; stop other loaders "
+                        "or wait and retry."
+                        + (f" Last conflict: {last_conflict_text}" if last_conflict_text else "")
+                    )
+                time.sleep(float(min(attempt * 2, 12)))
+    finally:
+        _release_load_lock(lock_fd, lock_path)
 
     return {
         "started_at": started_at,
@@ -110,6 +166,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-

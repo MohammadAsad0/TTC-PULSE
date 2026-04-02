@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
@@ -21,7 +21,9 @@ def _bootstrap_src_path() -> None:
 _bootstrap_src_path()
 
 from ttc_pulse.dashboard.loaders import get_dataset_coverage, load_dataset_rows, resolve_dataset_path
-from ttc_pulse.dashboard.storytelling import is_presentation_mode, page_story_header, story_mode_selector
+from ttc_pulse.dashboard.storytelling import is_presentation_mode, mark_dataset_reloaded, page_story_header, story_mode_selector, sync_dashboard_data_cache
+
+sync_dashboard_data_cache()
 from ttc_pulse.pipeline.load_dataset import run_load_dataset
 from ttc_pulse.utils.project_setup import resolve_project_paths
 
@@ -139,11 +141,22 @@ with header_right:
         with st.spinner("Loading raw CSV files into DuckDB and Parquet..."):
             try:
                 load_result = run_load_dataset()
+            except TimeoutError as exc:  # pragma: no cover
+                st.error(
+                    "Dataset load is already running in another session/process. "
+                    "Please wait for it to finish and retry. "
+                    f"Details: {exc}"
+                )
+            except RuntimeError as exc:  # pragma: no cover
+                st.error(f"Dataset load failed due to concurrent DuckDB writers: {exc}")
             except Exception as exc:  # pragma: no cover
                 st.error(f"Dataset load failed: {type(exc).__name__}: {exc}")
             else:
                 st.success("Dataset load completed.")
                 st.cache_data.clear()
+                st.cache_resource.clear()
+                mark_dataset_reloaded()
+                sync_dashboard_data_cache()
                 highlights = load_result.get("highlights", {})
                 st.caption(
                     " | ".join(
@@ -239,9 +252,5 @@ st.download_button(
     file_name=f"ttc_pulse_{selected_mode}_{start_iso}_to_{end_iso}.csv",
     mime="text/csv",
 )
-
-
-
-
 
 

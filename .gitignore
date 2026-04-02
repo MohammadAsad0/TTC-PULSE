@@ -12,6 +12,8 @@ __pycache__/
 *.duckdb
 *.parquet
 
+*.csv
+
 alerts/raw_snapshots/*.pb
 logs/*.log
 logs/*.lock

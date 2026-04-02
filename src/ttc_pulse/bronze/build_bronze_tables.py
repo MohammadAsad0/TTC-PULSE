@@ -16,6 +16,7 @@ from ttc_pulse.utils.project_setup import (
     ensure_duckdb_connection,
     ensure_project_layout,
     quote_identifier,
+    resolve_project_display_path,
     resolve_project_paths,
     sql_file_array,
     sql_literal,
@@ -83,7 +84,8 @@ def _build_bronze_from_csv_files(
     file_paths: list[Path],
     ingested_at: str,
 ) -> int:
-    if not file_paths:
+    existing_paths = [Path(path).resolve() for path in file_paths if Path(path).exists()]
+    if not existing_paths:
         _create_empty_bronze_table(connection, table_name)
         return 0
 
@@ -93,7 +95,7 @@ def _build_bronze_from_csv_files(
         CREATE OR REPLACE TEMP TABLE {quote_identifier(stage_name)} AS
         SELECT *
         FROM read_csv_auto(
-            {sql_file_array(file_paths)},
+            {sql_file_array(existing_paths)},
             all_varchar = TRUE,
             union_by_name = TRUE,
             filename = TRUE,
@@ -368,7 +370,7 @@ def run_step1() -> dict[str, Any]:
     bus_bronze_count = _build_bronze_from_csv_files(
         connection,
         table_name="bronze_bus",
-        file_paths=[Path(path) for path in bus_result["files"]],
+        file_paths=[resolve_project_display_path(path, paths.project_root) for path in bus_result["files"]],
         ingested_at=ingested_at,
     )
     log_rows.append(
@@ -385,7 +387,7 @@ def run_step1() -> dict[str, Any]:
     subway_bronze_count = _build_bronze_from_csv_files(
         connection,
         table_name="bronze_subway",
-        file_paths=[Path(path) for path in subway_result["files"]],
+        file_paths=[resolve_project_display_path(path, paths.project_root) for path in subway_result["files"]],
         ingested_at=ingested_at,
     )
     log_rows.append(
@@ -402,7 +404,7 @@ def run_step1() -> dict[str, Any]:
     streetcar_bronze_count = _build_bronze_from_csv_files(
         connection,
         table_name="bronze_streetcar",
-        file_paths=[Path(path) for path in streetcar_result["files"]],
+        file_paths=[resolve_project_display_path(path, paths.project_root) for path in streetcar_result["files"]],
         ingested_at=ingested_at,
     )
     log_rows.append(
@@ -424,7 +426,7 @@ def run_step1() -> dict[str, Any]:
             row_count = _build_bronze_from_single_csv(
                 connection,
                 table_name=bronze_table,
-                source_path=Path(source_path),
+                source_path=resolve_project_display_path(source_path, paths.project_root),
                 ingested_at=ingested_at,
             )
             status = "ok"

@@ -22,7 +22,9 @@ _bootstrap_src_path()
 from ttc_pulse.dashboard.charts import line_chart, stacked_bar_chart
 from ttc_pulse.dashboard.formatting import fmt_date, fmt_int, fmt_pct, status_label
 from ttc_pulse.dashboard.loaders import GOLD_TABLE_FILES, get_gold_table_status_frame, query_table, resolve_duckdb_path
-from ttc_pulse.dashboard.storytelling import is_presentation_mode, page_story_header, story_mode_selector
+from ttc_pulse.dashboard.storytelling import is_presentation_mode, page_story_header, story_mode_selector, sync_dashboard_data_cache
+
+sync_dashboard_data_cache()
 
 
 @st.cache_data(ttl=120)
@@ -173,3 +175,5 @@ status_display = status_frame.copy()
 if not status_display.empty and "status" in status_display.columns:
     status_display["status"] = status_display["status"].map(status_label)
 st.dataframe(status_display, use_container_width=True, hide_index=True)
+
+

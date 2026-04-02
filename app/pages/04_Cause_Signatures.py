@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
@@ -24,7 +24,9 @@ from ttc_pulse.dashboard.charts import horizontal_bar_chart, stacked_bar_chart
 from ttc_pulse.dashboard.ai_explain import render_ai_explain_block
 from ttc_pulse.dashboard.formatting import fmt_pct
 from ttc_pulse.dashboard.loaders import query_table
-from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector
+from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector, sync_dashboard_data_cache
+
+sync_dashboard_data_cache()
 
 
 @st.cache_data(ttl=120)
@@ -239,3 +241,5 @@ if trend_chart is not None:
     )
 
 next_question_hint("How does one route/station behave across time slices? Open: Drill-Down Explorer.")
+
+

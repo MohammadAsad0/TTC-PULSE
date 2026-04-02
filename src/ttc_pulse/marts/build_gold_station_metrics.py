@@ -81,8 +81,7 @@ def _build_station_query() -> str:
             AND service_date IS NOT NULL
             AND hour_bin IS NOT NULL
             AND station_canonical IS NOT NULL
-            AND link_status = 'matched'
-            AND confidence_tier IN ('exact_gtfs_match', 'token_gtfs_match', 'alias_match')
+            AND TRIM(station_canonical) <> ''
     ),
     metrics AS (
         SELECT
@@ -330,8 +329,7 @@ def run_build_gold_station_metrics(
                 AND service_date IS NOT NULL
                 AND hour_bin IS NOT NULL
                 AND station_canonical IS NOT NULL
-                AND link_status = 'matched'
-                AND confidence_tier IN ('exact_gtfs_match', 'token_gtfs_match', 'alias_match')
+                AND TRIM(station_canonical) <> ''
             """
         ).fetchone()[0]
         if int(filtered_rows) == 0:

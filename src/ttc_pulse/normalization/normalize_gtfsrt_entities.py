@@ -13,6 +13,114 @@ from ttc_pulse.utils.project_setup import resolve_project_paths, sql_literal
 OUTPUT_FILENAME = "silver_gtfsrt_alert_entities.parquet"
 
 
+def _table_exists(connection: duckdb.DuckDBPyConnection, table_name: str) -> bool:
+    return (
+        connection.execute(
+            """
+            SELECT COUNT(*)
+            FROM information_schema.tables
+            WHERE table_schema = 'main' AND table_name = ?
+            """,
+            [table_name],
+        ).fetchone()[0]
+        > 0
+    )
+
+
+def _column_set(connection: duckdb.DuckDBPyConnection, table_name: str) -> set[str]:
+    rows = connection.execute(f"PRAGMA table_info({sql_literal(table_name)})").fetchall()
+    return {str(row[1]) for row in rows}
+
+
+def _safe_text_expr(column_set: set[str], column_name: str) -> str:
+    if column_name not in column_set:
+        return "NULL::VARCHAR"
+    return f"NULLIF(TRIM(CAST({column_name} AS VARCHAR)), '')"
+
+
+def _prepare_gtfsrt_source_views(connection: duckdb.DuckDBPyConnection) -> None:
+    if not _table_exists(connection, "bronze_gtfsrt_alerts"):
+        _create_empty_output_table(connection)
+        connection.execute(
+            """
+            CREATE OR REPLACE TEMP VIEW src_bronze_gtfsrt_alerts AS
+            SELECT
+                CAST(NULL AS VARCHAR) AS snapshot_source_file,
+                CAST(NULL AS VARCHAR) AS alert_id,
+                CAST(NULL AS VARCHAR) AS cause,
+                CAST(NULL AS VARCHAR) AS effect,
+                CAST(NULL AS VARCHAR) AS header_text,
+                CAST(NULL AS VARCHAR) AS description_text,
+                CAST(NULL AS VARCHAR) AS starts_at,
+                CAST(NULL AS VARCHAR) AS ends_at,
+                CAST(NULL AS TIMESTAMP) AS ingested_at,
+                CAST(NULL AS VARCHAR) AS row_hash
+            WHERE FALSE
+            """
+        )
+    else:
+        alert_cols = _column_set(connection, "bronze_gtfsrt_alerts")
+        connection.execute(
+            f"""
+            CREATE OR REPLACE TEMP VIEW src_bronze_gtfsrt_alerts AS
+            SELECT
+                {_safe_text_expr(alert_cols, 'snapshot_source_file')} AS snapshot_source_file,
+                {_safe_text_expr(alert_cols, 'alert_id')} AS alert_id,
+                {_safe_text_expr(alert_cols, 'cause')} AS cause,
+                {_safe_text_expr(alert_cols, 'effect')} AS effect,
+                {_safe_text_expr(alert_cols, 'header_text')} AS header_text,
+                {_safe_text_expr(alert_cols, 'description_text')} AS description_text,
+                {_safe_text_expr(alert_cols, 'starts_at')} AS starts_at,
+                {_safe_text_expr(alert_cols, 'ends_at')} AS ends_at,
+                ingested_at,
+                row_hash
+            FROM bronze_gtfsrt_alerts
+            """
+        )
+
+    if not _table_exists(connection, "bronze_gtfsrt_entities"):
+        connection.execute(
+            """
+            CREATE OR REPLACE TEMP VIEW src_bronze_gtfsrt_entities AS
+            SELECT
+                CAST(NULL AS VARCHAR) AS snapshot_source_file,
+                CAST(NULL AS VARCHAR) AS alert_id,
+                CAST(NULL AS VARCHAR) AS agency_id,
+                CAST(NULL AS VARCHAR) AS route_id,
+                CAST(NULL AS VARCHAR) AS stop_id,
+                CAST(NULL AS VARCHAR) AS trip_id,
+                CAST(NULL AS VARCHAR) AS route_type,
+                CAST(NULL AS VARCHAR) AS direction_id,
+                CAST(NULL AS VARCHAR) AS start_time,
+                CAST(NULL AS VARCHAR) AS end_time,
+                CAST(NULL AS TIMESTAMP) AS ingested_at,
+                CAST(NULL AS VARCHAR) AS row_hash
+            WHERE FALSE
+            """
+        )
+    else:
+        entity_cols = _column_set(connection, "bronze_gtfsrt_entities")
+        connection.execute(
+            f"""
+            CREATE OR REPLACE TEMP VIEW src_bronze_gtfsrt_entities AS
+            SELECT
+                {_safe_text_expr(entity_cols, 'snapshot_source_file')} AS snapshot_source_file,
+                {_safe_text_expr(entity_cols, 'alert_id')} AS alert_id,
+                {_safe_text_expr(entity_cols, 'agency_id')} AS agency_id,
+                {_safe_text_expr(entity_cols, 'route_id')} AS route_id,
+                {_safe_text_expr(entity_cols, 'stop_id')} AS stop_id,
+                {_safe_text_expr(entity_cols, 'trip_id')} AS trip_id,
+                {_safe_text_expr(entity_cols, 'route_type')} AS route_type,
+                {_safe_text_expr(entity_cols, 'direction_id')} AS direction_id,
+                {_safe_text_expr(entity_cols, 'start_time')} AS start_time,
+                {_safe_text_expr(entity_cols, 'end_time')} AS end_time,
+                ingested_at,
+                row_hash
+            FROM bronze_gtfsrt_entities
+            """
+        )
+
+
 def _create_empty_output_table(connection: duckdb.DuckDBPyConnection) -> None:
     connection.execute(
         """
@@ -59,7 +167,7 @@ def _normalize_gtfsrt_sql() -> str:
             TRY_CAST(NULLIF(TRIM(ends_at), '') AS TIMESTAMP) AS active_end_ts,
             ingested_at AS alert_ingested_at,
             row_hash AS alert_row_hash
-        FROM bronze_gtfsrt_alerts
+        FROM src_bronze_gtfsrt_alerts
     ),
     entities AS (
         SELECT
@@ -75,7 +183,7 @@ def _normalize_gtfsrt_sql() -> str:
             NULLIF(TRIM(end_time), '') AS selector_end_raw,
             ingested_at AS entity_ingested_at,
             row_hash AS entity_row_hash
-        FROM bronze_gtfsrt_entities
+        FROM src_bronze_gtfsrt_entities
     ),
     joined AS (
         SELECT
@@ -227,8 +335,9 @@ def run_normalize_gtfsrt_entities(
 
     connection = duckdb.connect(str(resolved_db_path))
     connection.execute("PRAGMA disable_progress_bar")
+    _prepare_gtfsrt_source_views(connection)
 
-    entity_count = connection.execute("SELECT COUNT(*) FROM bronze_gtfsrt_entities").fetchone()[0]
+    entity_count = connection.execute("SELECT COUNT(*) FROM src_bronze_gtfsrt_entities").fetchone()[0]
     if entity_count == 0:
         _create_empty_output_table(connection)
     else:

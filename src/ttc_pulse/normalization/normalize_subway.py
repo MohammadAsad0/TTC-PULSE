@@ -1,4 +1,4 @@
-"""Step 2 subway normalization (station-first) into Silver parquet."""
+﻿"""Step 2 subway normalization (station-first) into Silver parquet."""
 
 from __future__ import annotations
 
@@ -88,7 +88,7 @@ def _normalize_subway_sql(code_reference_path: Path | None = None) -> str:
                                 ' ',
                                 'g'
                             ),
-                            '\\b(STATION|STN|SUBWAY|LINE|LINES|YUS|YU|BD|SRT|SHP|SHEP|MC|CTR|CENTRE|CENTER)\\b',
+                            '\\b(STATION|STATIONS|STATIO|STATN|STN|STA|SUBWAY|LINE|LINES|YUS|YU|BD|SRT|SHP|SHEP|MC|CTR|CENTRE|CENTER)\\b',
                             ' ',
                             'g'
                         ),
@@ -178,7 +178,7 @@ def _normalize_subway_sql(code_reference_path: Path | None = None) -> str:
                                 ' ',
                                 'g'
                             ),
-                            '\\b(STATION|STN|SUBWAY|LINE|LINES|YUS|YU|BD|SRT|SHP|SHEP|MC|CTR|CENTRE|CENTER)\\b',
+                            '\\b(STATION|STATIONS|STATIO|STATN|STN|STA|SUBWAY|LINE|LINES|YUS|YU|BD|SRT|SHP|SHEP|MC|CTR|CENTRE|CENTER)\\b',
                             ' ',
                             'g'
                         ),
@@ -210,8 +210,30 @@ def _normalize_subway_sql(code_reference_path: Path | None = None) -> str:
         FROM direction_ready d
         LEFT JOIN gtfs_line_routes r
             ON r.route_short_name = d.line_code_norm
-        LEFT JOIN gtfs_station_tokens gs
-            ON gs.station_canonical_gtfs = d.station_canonical
+        LEFT JOIN LATERAL (
+            SELECT station_canonical_gtfs
+            FROM gtfs_station_tokens s
+            WHERE d.station_canonical IS NOT NULL
+                AND s.station_canonical_gtfs IS NOT NULL
+                AND (
+                    s.station_canonical_gtfs = d.station_canonical
+                    OR d.station_canonical LIKE s.station_canonical_gtfs || ' %'
+                    OR d.station_canonical LIKE '% ' || s.station_canonical_gtfs
+                    OR d.station_canonical LIKE '%' || s.station_canonical_gtfs || '%'
+                    OR s.station_canonical_gtfs LIKE d.station_canonical || '%'
+                )
+            ORDER BY
+                CASE
+                    WHEN s.station_canonical_gtfs = d.station_canonical THEN 0
+                    WHEN d.station_canonical LIKE s.station_canonical_gtfs || ' %' THEN 1
+                    WHEN d.station_canonical LIKE '% ' || s.station_canonical_gtfs THEN 2
+                    WHEN d.station_canonical LIKE '%' || s.station_canonical_gtfs || '%' THEN 3
+                    WHEN s.station_canonical_gtfs LIKE d.station_canonical || '%' THEN 4
+                    ELSE 9
+                END,
+                LENGTH(s.station_canonical_gtfs) DESC
+            LIMIT 1
+        ) gs ON TRUE
         LEFT JOIN subway_code_reference scr
             ON UPPER(COALESCE(d.code_raw, '')) = scr.incident_code_raw
     ),
@@ -233,7 +255,10 @@ def _normalize_subway_sql(code_reference_path: Path | None = None) -> str:
             line_code_norm,
             route_id_gtfs,
             station_raw AS station_text_raw,
-            station_canonical,
+            CASE
+                WHEN UPPER(COALESCE(station_canonical_gtfs, station_canonical, '')) LIKE '%PIONEER%' THEN 'PIONEER VILLAGE'
+                ELSE COALESCE(station_canonical_gtfs, station_canonical)
+            END AS station_canonical,
             station_raw AS location_text_raw,
             incident_description AS incident_text_raw,
             code_raw AS incident_code_raw,
@@ -353,3 +378,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
