@@ -6,13 +6,13 @@
     "parse_summary_json": "TTC-PULSE/alerts/parsed/parse_summary.json",
     "service_alert_entities_csv": "TTC-PULSE/alerts/parsed/service_alert_entities.csv"
   },
-  "parsed_at": "2026-03-31T20:41:47Z",
+  "parsed_at": "2026-04-02T14:09:00Z",
   "parsed_snapshot_count": 1,
   "protobuf_decode_available": true,
-  "rows_emitted": 9,
+  "rows_emitted": 4,
   "rows_written": {
     "parse_manifest_csv": 1,
-    "service_alert_entities_csv": 9
+    "service_alert_entities_csv": 4
   },
   "sample_rows_produced": true,
   "sidecar_log": {
@@ -20,8 +20,8 @@
     "artifact_path": "TTC-PULSE/alerts/parsed/service_alert_entities.csv",
     "details": "snapshot_count=1; protobuf_decode_available=True; parsed_snapshot_count=1; skipped_existing=0; append_outputs=True; caveats=-",
     "log_path": "D:/fSemester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/logs/step3_alerts_sidecar_log.csv",
-    "logged_at": "2026-03-31T20:41:47Z",
-    "row_count": 9,
+    "logged_at": "2026-04-02T14:09:00Z",
+    "row_count": 4,
     "status": "ok",
     "step": "parse_service_alert_snapshots"
   },

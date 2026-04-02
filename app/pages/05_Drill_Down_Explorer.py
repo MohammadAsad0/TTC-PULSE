@@ -24,7 +24,7 @@ _bootstrap_src_path()
 from ttc_pulse.dashboard.formatting import DAY_NAME_ORDER, fmt_float, fmt_int
 from ttc_pulse.dashboard.ai_explain import render_ai_explain_block
 from ttc_pulse.dashboard.loaders import query_table
-from ttc_pulse.dashboard.metric_config import METRIC_OPTIONS, metric_axis_title, resolve_metric_choice
+from ttc_pulse.dashboard.metric_config import METRIC_OPTIONS, metric_axis_title, metric_selector_help_text, resolve_metric_choice
 from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector
 from ttc_pulse.utils.project_setup import resolve_project_paths
 
@@ -577,6 +577,7 @@ if pd.isna(min_service_date) or pd.isna(max_service_date):
 min_date = min_service_date.date()
 max_date = max_service_date.date()
 selected_metric_label = st.selectbox("Metric", options=METRIC_OPTIONS, index=0)
+st.caption(metric_selector_help_text(selected_metric_label))
 
 date_selection = st.date_input(
     "Service date range",
@@ -1072,6 +1073,5 @@ if not presentation:
         st.dataframe(year_frame, use_container_width=True, hide_index=True)
 
 next_question_hint("Do live alerts currently align with historical hotspots? Open: Live Alert Alignment.")
-
 
 

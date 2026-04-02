@@ -24,7 +24,7 @@ _bootstrap_src_path()
 from ttc_pulse.dashboard.formatting import sort_day_name
 from ttc_pulse.dashboard.ai_explain import render_ai_explain_block
 from ttc_pulse.dashboard.loaders import query_table
-from ttc_pulse.dashboard.metric_config import METRIC_OPTIONS, metric_axis_title, resolve_metric_choice
+from ttc_pulse.dashboard.metric_config import METRIC_OPTIONS, metric_axis_title, metric_selector_help_text, resolve_metric_choice
 from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector
 
 
@@ -274,6 +274,7 @@ min_date = selected_coverage["min_service_date"].iloc[0].date()
 max_date = selected_coverage["max_service_date"].iloc[0].date()
 
 selected_metric_label = st.selectbox("Heatmap Metric", options=METRIC_OPTIONS, index=0)
+st.caption(metric_selector_help_text(selected_metric_label))
 
 date_selection = st.date_input(
     "Service date range",
@@ -398,7 +399,5 @@ if not presentation:
     st.dataframe(monthly_table, use_container_width=True, hide_index=True)
 
 next_question_hint("What causes dominate these hotspots? Open: Cause Signatures.")
-
-
 
 

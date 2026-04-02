@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import streamlit as st
 
@@ -15,10 +15,10 @@ with lead_left:
     st.page_link("pages/01_Story_Overview.py", label="Story Overview")
     st.page_link("pages/02_Recurring_Hotspots.py", label="Recurring Hotspots")
     st.page_link("pages/03_Time_Patterns.py", label="Time Patterns")
+    st.page_link("pages/04_Cause_Signatures.py", label="Cause Signatures")
 with lead_right:
     st.subheader("Deep dive")
     st.page_link("pages/05_Drill_Down_Explorer.py", label="Drill-Down Explorer")
     st.page_link("pages/06_Live_Alert_Alignment.py", label="Live Alert Alignment")
     st.page_link("pages/07_Technical Appendix.py", label="Technical Appendix")
     st.page_link("pages/08_AI_Chat_Bot.py", label="AI-chat bot")
-

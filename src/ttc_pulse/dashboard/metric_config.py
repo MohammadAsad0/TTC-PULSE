@@ -33,6 +33,14 @@ METRIC_FALLBACK_ORDER: dict[str, list[str]] = {
 
 METRIC_LABEL_BY_COLUMN: dict[str, str] = {column: label for label, column in METRIC_COLUMN_MAP.items()}
 
+METRIC_DEFINITION_BY_LABEL: dict[str, str] = {
+    "Frequency": "Measures how often delay events occur (disruption volume).",
+    "Severity": "Measures how bad the worst delays are (upper-tail delay magnitude).",
+    "Regularity": "Measures how inconsistent service spacing is (headway irregularity / bunching).",
+    "Cause Mix": "Measures how diverse or concentrated the causes of delays are.",
+    "Composite Score": "Measures overall reliability by combining frequency, severity, regularity, and causes (Composite score = 0.35 z(F) + 0.30 z(Sev90) + 0.20 z(Reg90) + 0.15C).",
+}
+
 
 @dataclass(frozen=True)
 class MetricResolution:
@@ -49,6 +57,11 @@ class MetricResolution:
 def metric_axis_title(metric_label: str) -> str:
     """Return a readable axis label for a selected metric."""
     return metric_label
+
+
+def metric_selector_help_text(metric_label: str) -> str:
+    """Return definition text for the selected metric."""
+    return METRIC_DEFINITION_BY_LABEL.get(str(metric_label), "")
 
 
 def metric_chart_title(subject: str, metric_label: str, composite_phrase: str = "Composite Reliability Risk Score") -> str:
@@ -126,6 +139,7 @@ def resolve_metric_choice(
 
 __all__ = [
     "METRIC_COLUMN_MAP",
+    "METRIC_DEFINITION_BY_LABEL",
     "METRIC_FALLBACK_ORDER",
     "METRIC_LABEL_BY_COLUMN",
     "METRIC_OPTIONS",
@@ -134,5 +148,6 @@ __all__ = [
     "metric_chart_title",
     "metric_column",
     "metric_fallback_candidates",
+    "metric_selector_help_text",
     "resolve_metric_choice",
 ]

@@ -25,7 +25,7 @@ _bootstrap_src_path()
 from ttc_pulse.dashboard.formatting import fmt_float, fmt_int
 from ttc_pulse.dashboard.ai_explain import render_ai_explain_block
 from ttc_pulse.dashboard.loaders import GOLD_TABLE_FILES, query_table, resolve_project_root
-from ttc_pulse.dashboard.metric_config import METRIC_OPTIONS, metric_axis_title, resolve_metric_choice
+from ttc_pulse.dashboard.metric_config import METRIC_OPTIONS, metric_axis_title, metric_selector_help_text, resolve_metric_choice
 from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector
 
 
@@ -410,6 +410,7 @@ min_date = min_service_date.date()
 max_date = max_service_date.date()
 
 selected_metric_label = st.selectbox("Metric", options=METRIC_OPTIONS, index=0)
+st.caption(metric_selector_help_text(selected_metric_label))
 default_top_n = 15 if presentation else 25
 top_n = st.slider("Top N", min_value=5, max_value=100, value=default_top_n, step=5)
 
@@ -631,8 +632,5 @@ render_ai_explain_block(
 )
 
 next_question_hint("When do these hotspots recur most often? Open: Time Patterns.")
-
-
-
 
 
