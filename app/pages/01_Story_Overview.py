@@ -26,6 +26,28 @@ from ttc_pulse.dashboard.ai_explain import render_ai_explain_block
 from ttc_pulse.dashboard.loaders import query_table
 from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector
 
+ALL_MODES = ("bus", "streetcar", "subway")
+METRIC_DISPLAY_NAMES = {
+    "frequency": "Frequency",
+    "severity_p90": "Severity P90",
+    "regularity_p90": "Regularity P90",
+    "cause_mix_score": "Cause Mix Score",
+}
+MODE_METRIC_COLORS = {
+    ("bus", "frequency"): "#1f77b4",
+    ("bus", "severity_p90"): "#4e79a7",
+    ("bus", "regularity_p90"): "#76a5d8",
+    ("bus", "cause_mix_score"): "#9ec1e6",
+    ("streetcar", "frequency"): "#d64f4f",
+    ("streetcar", "severity_p90"): "#e07a5f",
+    ("streetcar", "regularity_p90"): "#f1a46f",
+    ("streetcar", "cause_mix_score"): "#f5c28b",
+    ("subway", "frequency"): "#2ca02c",
+    ("subway", "severity_p90"): "#4cb35f",
+    ("subway", "regularity_p90"): "#7ccf84",
+    ("subway", "cause_mix_score"): "#a8e0aa",
+}
+
 
 @st.cache_data(ttl=120)
 def _load_core_coverage():
@@ -214,7 +236,11 @@ if pd.isna(min_service_date) or pd.isna(max_service_date):
 min_date = min_service_date.date()
 max_date = max_service_date.date()
 
-selected_mode = st.selectbox("Mode", options=["bus", "streetcar", "subway"], index=0)
+selected_modes = st.multiselect("Modes", options=list(ALL_MODES), default=list(ALL_MODES))
+if not selected_modes:
+    st.info("Select at least one mode to render Story Overview.")
+    st.stop()
+
 date_selection = st.date_input(
     "Service date range",
     value=(min_date, max_date),
@@ -236,9 +262,9 @@ if monthly_result.status == "empty":
 
 monthly = monthly_result.frame.copy()
 monthly["month_start"] = pd.to_datetime(monthly["month_start"], errors="coerce")
-monthly = monthly[(monthly["mode"] == selected_mode) & monthly["month_start"].notna()].copy()
+monthly = monthly[(monthly["mode"].isin(selected_modes)) & monthly["month_start"].notna()].copy()
 if monthly.empty:
-    st.info("No monthly reliability rows are available for selected mode.")
+    st.info("No monthly reliability rows are available for selected modes.")
     st.stop()
 
 kpi_a, kpi_b, kpi_c, kpi_d = st.columns(4)
@@ -248,7 +274,7 @@ kpi_c.metric("Avg Severity P90", fmt_float(monthly["severity_p90"].mean(), digit
 kpi_d.metric("Avg Regularity P90", fmt_float(monthly["regularity_p90"].mean(), digits=2))
 
 trend_frame = monthly.melt(
-    id_vars=["month_start"],
+    id_vars=["mode", "month_start"],
     value_vars=["frequency", "severity_p90", "regularity_p90", "cause_mix_score"],
     var_name="metric",
     value_name="value",
@@ -256,6 +282,18 @@ trend_frame = monthly.melt(
 
 metric_focus = ["frequency", "severity_p90"] if presentation else ["frequency", "severity_p90", "regularity_p90", "cause_mix_score"]
 trend_plot = trend_frame[trend_frame["metric"].isin(metric_focus)].copy()
+trend_plot["metric_label"] = trend_plot["metric"].map(METRIC_DISPLAY_NAMES).fillna(trend_plot["metric"])
+trend_plot["mode_label"] = trend_plot["mode"].str.title()
+trend_plot["mode_metric"] = trend_plot["mode_label"] + " - " + trend_plot["metric_label"]
+
+color_domain = []
+color_range = []
+for mode_name in selected_modes:
+    for metric_name in metric_focus:
+        color_domain.append(f"{mode_name.title()} - {METRIC_DISPLAY_NAMES.get(metric_name, metric_name)}")
+        color_range.append(MODE_METRIC_COLORS.get((mode_name, metric_name), "#7f7f7f"))
+
+selected_mode_title = ", ".join(mode_name.title() for mode_name in selected_modes)
 
 chart = (
     alt.Chart(trend_plot)
@@ -263,11 +301,16 @@ chart = (
     .encode(
         x=alt.X("month_start:T", title="Month", axis=alt.Axis(labelAngle=0)),
         y=alt.Y("value:Q", title="Metric Value"),
-        color=alt.Color("metric:N", title="Metric"),
-        tooltip=["month_start:T", "metric:N", "value:Q"],
+        color=alt.Color("mode_metric:N", title="Mode + Metric", scale=alt.Scale(domain=color_domain, range=color_range)),
+        tooltip=[
+            alt.Tooltip("month_start:T", title="Month"),
+            alt.Tooltip("mode_label:N", title="Mode"),
+            alt.Tooltip("metric_label:N", title="Metric"),
+            alt.Tooltip("value:Q", title="Value", format=".3f"),
+        ],
     )
     .properties(
-        title=f"{selected_mode.title()} Reliability Pattern Over Time",
+        title=f"Reliability Pattern Over Time ({selected_mode_title})",
         height=340,
     )
     .interactive()
@@ -276,9 +319,9 @@ st.altair_chart(chart, use_container_width=True)
 render_ai_explain_block(
     page_name="Story Overview",
     chart_id="monthly_reliability_trend",
-    chart_title=f"{selected_mode.title()} Reliability Pattern Over Time",
+    chart_title=f"Reliability Pattern Over Time ({selected_mode_title})",
     filters={
-        "mode": selected_mode,
+        "mode": ",".join(selected_modes),
         "start_date": selected_start_iso,
         "end_date": selected_end_iso,
         "presentation_mode": presentation,
@@ -287,20 +330,36 @@ render_ai_explain_block(
     frame=trend_plot,
 )
 
-route_hotspot_result = _load_mode_hotspot_snapshot(selected_mode, selected_start_iso, selected_end_iso)
+route_frames: list[pd.DataFrame] = []
+for mode_name in selected_modes:
+    mode_snapshot = _load_mode_hotspot_snapshot(mode_name, selected_start_iso, selected_end_iso)
+    if mode_snapshot.status == "ok" and not mode_snapshot.frame.empty:
+        route_frames.append(mode_snapshot.frame.copy())
+
+if route_frames:
+    route_hotspots = pd.concat(route_frames, ignore_index=True)
+    route_hotspots = route_hotspots.sort_values(
+        by=["composite_score", "frequency"], ascending=[False, False], na_position="last"
+    ).head(12)
+else:
+    route_hotspots = pd.DataFrame()
+
 subway_hotspot_result = _load_subway_hotspot_snapshot(selected_start_iso, selected_end_iso)
+streetcar_hotspot_result = _load_mode_hotspot_snapshot("streetcar", selected_start_iso, selected_end_iso)
 
-left, right = st.columns(2)
-with left:
-    st.markdown("**Top Route Hotspots in Window**")
-    if route_hotspot_result.status == "ok" and not route_hotspot_result.frame.empty:
-        bus_view = route_hotspot_result.frame[["entity_id", "frequency", "severity_p90", "regularity_p90", "cause_mix_score", "composite_score"]].copy()
-        bus_view = bus_view.rename(columns={"entity_id": "route_id"})
-        st.dataframe(bus_view, use_container_width=True, hide_index=True)
-    else:
-        st.caption("No route hotspot snapshot available.")
+st.markdown("**Top Route Hotspots in Window (Selected Modes)**")
+if not route_hotspots.empty:
+    route_view = route_hotspots[
+        ["mode", "entity_id", "frequency", "severity_p90", "regularity_p90", "cause_mix_score", "composite_score"]
+    ].copy()
+    route_view = route_view.rename(columns={"entity_id": "route_id"})
+    route_view["mode"] = route_view["mode"].str.title()
+    st.dataframe(route_view, use_container_width=True, hide_index=True)
+else:
+    st.caption("No route hotspot snapshot available for selected modes.")
 
-with right:
+subway_col, streetcar_col = st.columns(2)
+with subway_col:
     st.markdown("**Top Subway Stations in Window**")
     if subway_hotspot_result.status == "ok" and not subway_hotspot_result.frame.empty:
         subway_view = subway_hotspot_result.frame[["entity_id", "frequency", "severity_p90", "regularity_p90", "cause_mix_score", "composite_score"]].copy()
@@ -309,13 +368,18 @@ with right:
     else:
         st.caption("No subway hotspot snapshot available.")
 
+with streetcar_col:
+    st.markdown("**Top Streetcar Routes in Window**")
+    if streetcar_hotspot_result.status == "ok" and not streetcar_hotspot_result.frame.empty:
+        streetcar_view = streetcar_hotspot_result.frame[
+            ["entity_id", "frequency", "severity_p90", "regularity_p90", "cause_mix_score", "composite_score"]
+        ].copy()
+        streetcar_view = streetcar_view.rename(columns={"entity_id": "route_id"})
+        st.dataframe(streetcar_view, use_container_width=True, hide_index=True)
+    else:
+        st.caption("No streetcar hotspot snapshot available.")
+
 if presentation:
     st.caption("Presentation mode keeps only summary evidence. Switch to Exploration for full tables and controls.")
 
 next_question_hint("Which routes/stations repeatedly dominate risk? Open: Recurring Hotspots.")
-
-
-
-
-
-
