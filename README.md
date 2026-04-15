@@ -34,7 +34,7 @@ Active project docs live in `docs/`:
 Recommended stable interpreter in this workspace:
 ```bash
 cd ttc_pulse
-PYTHONPATH=src ../.venv-ttc/bin/python -m streamlit run app/streamlit_app.py
+streamlit run app/streamlit_app.py
 ```
 
 Fresh local env (if needed):
@@ -65,7 +65,7 @@ GTFS-RT snapshots land in `alerts/raw_snapshots/`.
 If Gold outputs already exist:
 ```bash
 cd ttc_pulse
-PYTHONPATH=src ../.venv-ttc/bin/python -m streamlit run app/streamlit_app.py
+streamlit run app/streamlit_app.py
 ```
 
 Full pipeline then dashboard:
@@ -73,7 +73,7 @@ Full pipeline then dashboard:
 cd ttc_pulse
 export PYTHONPATH=src
 python -m ttc_pulse.pipeline.load_dataset
-python -m streamlit run app/streamlit_app.py
+streamlit run app/streamlit_app.py
 ```
 
 ## Manual Build Order
