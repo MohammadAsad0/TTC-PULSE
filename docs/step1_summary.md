@@ -1,7 +1,7 @@
 # Step 1 Summary (Ingestion/Foundation)
 
-- Run ID: `20260416T212108Z`
-- Ingested at (UTC): `2026-04-16T21:21:08Z`
+- Run ID: `20260416T222709Z`
+- Ingested at (UTC): `2026-04-16T22:27:09Z`
 - DuckDB path: `D:/Semester_2_Winter_(2026)/6414-Data Analytics and Visualization/test/TTC-PULSE/data/ttc_pulse.duckdb`
 
 ## Row Counts
@@ -18,11 +18,11 @@
 - `bronze_gtfsrt_entities`: **5984**
 - `bronze_streetcar`: **163010**
 - `bronze_subway`: **250558**
-- `raw_bus_file_registry`: **2300**
-- `raw_gtfs_file_registry`: **154**
-- `raw_gtfsrt_snapshot_registry`: **17710**
-- `raw_streetcar_file_registry`: **2392**
-- `raw_subway_file_registry`: **1342**
+- `raw_bus_file_registry`: **2700**
+- `raw_gtfs_file_registry`: **182**
+- `raw_gtfsrt_snapshot_registry`: **20930**
+- `raw_streetcar_file_registry`: **2792**
+- `raw_subway_file_registry`: **1586**
 
 ## Assumptions / Notes
 

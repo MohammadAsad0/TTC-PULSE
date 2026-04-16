@@ -717,6 +717,8 @@ if focus_mode != "All":
             if lname:
                 label += f" - {lname}"
             bus_route_labels[rid] = label
+        
+        catalog = [e for e in catalog if e in bus_route_labels]
 
     if catalog:
         if focus_mode == "Subway Station":

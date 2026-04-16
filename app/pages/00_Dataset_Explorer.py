@@ -338,6 +338,24 @@ if not presentation:
 
 st.dataframe(frame[display_columns], use_container_width=True, hide_index=True)
 
+st.divider()
+if selected_mode == "subway":
+    entity_name = "station"
+    target_col = "station_canonical"
+else:
+    entity_name = "route"
+    target_col = "route_label_raw" if "route_label_raw" in frame.columns else "route_short_name_norm"
+
+if target_col in frame.columns:
+    unique_names = sorted([str(x) for x in frame[target_col].dropna().unique()])
+    total_names = len(unique_names)
+    
+    st.caption(f"Total number of {entity_name}s: {total_names}")
+    
+    if total_names > 0:
+        display_limit = st.slider(f"Select number of {entity_name}s to display", 1, total_names, total_names)
+        st.write(", ".join(unique_names[:display_limit]))
+
 csv_bytes = frame[display_columns].to_csv(index=False).encode("utf-8")
 st.download_button(
     "Download current view as CSV",
