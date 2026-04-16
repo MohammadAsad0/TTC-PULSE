@@ -650,8 +650,15 @@ if selected_mode in {"bus", "streetcar"} or (selected_mode == "subway" and subwa
 bus_label_to_route = {label: route_id for route_id, label in bus_route_labels.items()}
 entity_state_key = f"drill_selected_entity_{selected_mode}"
 entity_select_key = f"drill_entity_select_{selected_mode}"
+if selected_mode in {"bus", "streetcar"} or (selected_mode == "subway" and subway_scope == "line"):
+    entity_options = [e for e in entity_options if e in bus_route_labels]
+
+if not entity_options:
+    st.warning(f"No {entity_label.lower()}s found for this selection.")
+    st.stop()
+
 if st.session_state.get(entity_state_key) not in entity_options:
-    st.session_state[entity_state_key] = default_entity
+    st.session_state[entity_state_key] = entity_options[0] if entity_options else default_entity
 if st.session_state.get(entity_select_key) not in entity_options:
     st.session_state[entity_select_key] = st.session_state[entity_state_key]
 selected_entity = st.selectbox(

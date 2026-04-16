@@ -334,6 +334,8 @@ def load_dataset_rows(
     end_date: str,
     limit: int = 1000,
     project_root: Path | None = None,
+    filter_route: str | None = None,
+    filter_station: str | None = None,
 ) -> QueryResult:
     """Load row-level dataset records for the selected mode and date window."""
     dataset_path = resolve_dataset_path(mode=mode, project_root=project_root)
@@ -349,25 +351,40 @@ def load_dataset_rows(
 
     connection = duckdb.connect(":memory:")
     try:
+        where_clauses = ["service_date BETWEEN ? AND ?"]
+        params = [start_date, end_date]
+
+        if filter_route:
+            where_clauses.append("route_id_gtfs = ?")
+            params.append(filter_route)
+        if filter_station:
+            where_clauses.append("station_canonical = ?")
+            params.append(filter_station)
+
+        where_sql = " AND ".join(where_clauses)
+
         total_row_count = int(
             connection.execute(
                 f"""
                 SELECT COUNT(*)
                 FROM read_parquet({_sql_literal(dataset_path.as_posix())})
-                WHERE service_date BETWEEN ? AND ?
+                WHERE {where_sql}
                 """,
-                [start_date, end_date],
+                params,
             ).fetchone()[0]
         )
+        
+        limit_params = params + [int(limit)]
+        
         frame = connection.execute(
             f"""
             SELECT *
             FROM read_parquet({_sql_literal(dataset_path.as_posix())})
-            WHERE service_date BETWEEN ? AND ?
+            WHERE {where_sql}
             ORDER BY service_date ASC, event_ts ASC NULLS LAST, source_row_id ASC NULLS LAST
             LIMIT ?
             """,
-            [start_date, end_date, int(limit)],
+            limit_params,
         ).df()
         status = "ok" if not frame.empty else "empty"
         return QueryResult(

@@ -97,12 +97,39 @@ def _extract_station_tokens(question: str) -> list[str]:
     return tokens[:5]
 
 
+@st.cache_data(ttl=3600)
+def _get_entity_catalog(mode: str) -> list[str]:
+    if mode == "subway":
+        res = query_table(
+            table_name="gold_station_time_metrics",
+            query_template="SELECT DISTINCT station_canonical FROM {source} WHERE station_canonical IS NOT NULL ORDER BY station_canonical"
+        )
+        if res.status in ("ok", "empty") and not res.frame.empty:
+            return res.frame["station_canonical"].tolist()
+        return []
+    else:
+        res = query_table(
+            table_name="gold_route_time_metrics",
+            query_template=f"SELECT DISTINCT route_id_gtfs FROM {{source}} WHERE route_id_gtfs IS NOT NULL AND mode = '{mode}' ORDER BY TRY_CAST(route_id_gtfs AS INTEGER), route_id_gtfs"
+        )
+        if res.status in ("ok", "empty") and not res.frame.empty:
+            return res.frame["route_id_gtfs"].tolist()
+        return []
+
+
 @st.cache_data(ttl=120)
-def _build_question_specific_context(question: str) -> str:
-    route_tokens = _extract_route_tokens(question)
-    station_tokens = _extract_station_tokens(question)
+def _build_question_specific_context(question: str, force_route: str | None = None, force_station: str | None = None) -> tuple[str, bool]:
+    route_tokens = [force_route] if force_route else _extract_route_tokens(question)
+    station_tokens = [force_station] if force_station else _extract_station_tokens(question)
+    
+    inferred_from_prompt = False
+    if not force_route and not force_station:
+        if route_tokens or station_tokens:
+            inferred_from_prompt = True
+
     if not route_tokens and not station_tokens:
-        return "No route/station-specific lookup requested."
+        return "No route/station-specific lookup requested.", inferred_from_prompt
+
 
     parts: list[str] = []
 
@@ -252,7 +279,7 @@ def _build_question_specific_context(question: str) -> str:
                 f"No records matched station token '{station_token}' in Gold station metrics, and silver subway events parquet is missing."
             )
 
-    return "\n".join(parts) if parts else "No route/station-specific lookup results were found."
+    return "\n".join(parts) if parts else "No route/station-specific lookup results were found.", inferred_from_prompt
 
 @st.cache_data(ttl=300)
 def _build_dataset_context() -> str:
@@ -411,7 +438,7 @@ def _extract_response_text(response: object) -> str:
     return "I could not parse the model response."
 
 
-def _chat_with_openai(model_name: str, api_key: str, question: str, data_context: str) -> str:
+def _chat_with_openai(model_name: str, api_key: str, question: str, data_context: str, inferred_from_prompt: bool = False) -> str:
     if OpenAI is None:
         return "OpenAI SDK is not installed. Add `openai` to requirements and reinstall dependencies."
 
@@ -426,6 +453,14 @@ def _chat_with_openai(model_name: str, api_key: str, question: str, data_context
         "Do not invent metrics that are not in context. "
         "If context is missing for a claim, say what is missing and give the closest safe answer."
     )
+    
+    if inferred_from_prompt:
+        system_prompt += (
+            "\n\nIMPORTANT: The user did not explicitly select a specific entity using the UI dropdown tool, "
+            "but you searched for it based on the text prompt. "
+            "You MUST mention exactly this inside your response: "
+            "'With the name you provided this is the closest canonical name found and used to report the below analysis.'"
+        )
 
     user_prompt = (
         "Dataset context:\n"
@@ -618,6 +653,32 @@ if "ai_chat_messages" not in st.session_state:
 model_name = (os.getenv("OPENAI_MODEL", "gpt-5.4-mini") or "gpt-5.4-mini").strip()
 api_key = os.getenv("OPENAI_API_KEY", "").strip()
 
+focus_mode = st.radio(
+    "Focus Mode",
+    ["All", "Subway Station", "Bus Route", "Streetcar Route"],
+    horizontal=True,
+    help="Select 'All' to infer context from your prompt, or select a specific mode to focus the analysis."
+)
+
+force_route = None
+force_station = None
+
+if focus_mode != "All":
+    mode_map = {
+        "Subway Station": "subway",
+        "Bus Route": "bus",
+        "Streetcar Route": "streetcar"
+    }
+    catalog = _get_entity_catalog(mode_map[focus_mode])
+    if catalog:
+        selected_entity = st.selectbox(f"Select {focus_mode}", options=catalog)
+        if focus_mode == "Subway Station":
+            force_station = selected_entity
+        else:
+            force_route = selected_entity
+    else:
+        st.warning(f"No {focus_mode.lower()}s available in catalog.")
+
 controls_spacer, controls_right = st.columns([6, 1], vertical_alignment="bottom")
 with controls_spacer:
     st.empty()
@@ -652,14 +713,14 @@ if question:
     else:
         with st.spinner("Analyzing TTC dataset context..."):
             data_context = _build_dataset_context()
-            question_context = _build_question_specific_context(question)
+            question_context, inferred_from_prompt = _build_question_specific_context(question, force_route=force_route, force_station=force_station)
             combined_context = (
                 f"{data_context}\n\n"
                 "Question-specific lookup context:\n"
                 f"{question_context}"
             )
             try:
-                answer = _chat_with_openai(model_name, api_key, question, combined_context)
+                answer = _chat_with_openai(model_name, api_key, question, combined_context, inferred_from_prompt=inferred_from_prompt)
             except Exception as exc:  # pragma: no cover
                 answer = f"OpenAI request failed: {type(exc).__name__}: {exc}"
 

@@ -120,8 +120,27 @@ def _load_coverage(mode: str):
 
 
 @st.cache_data(ttl=120)
-def _load_rows(mode: str, start_date: str, end_date: str, row_limit: int):
-    return load_dataset_rows(mode=mode, start_date=start_date, end_date=end_date, limit=row_limit)
+def _load_rows(mode: str, start_date: str, end_date: str, row_limit: int, filter_route: str | None = None, filter_station: str | None = None):
+    return load_dataset_rows(mode=mode, start_date=start_date, end_date=end_date, limit=row_limit, filter_route=filter_route, filter_station=filter_station)
+
+@st.cache_data(ttl=3600)
+def _get_explorer_catalog(mode: str) -> list[str]:
+    from ttc_pulse.dashboard.loaders import query_table
+    if mode == "subway":
+        res = query_table(
+            table_name="gold_station_time_metrics",
+            query_template="SELECT DISTINCT station_canonical FROM {source} WHERE station_canonical IS NOT NULL ORDER BY station_canonical"
+        )
+        if res.status in ("ok", "empty") and not res.frame.empty:
+            return res.frame["station_canonical"].tolist()
+    else:
+        res = query_table(
+            table_name="gold_route_time_metrics",
+            query_template=f"SELECT DISTINCT route_id_gtfs FROM {{source}} WHERE route_id_gtfs IS NOT NULL AND mode = '{mode}' ORDER BY TRY_CAST(route_id_gtfs AS INTEGER), route_id_gtfs"
+        )
+        if res.status in ("ok", "empty") and not res.frame.empty:
+            return res.frame["route_id_gtfs"].tolist()
+    return []
 
 
 header_left, header_right = st.columns([4, 1], vertical_alignment="bottom")
@@ -199,7 +218,7 @@ if pd.isna(min_service_date) or pd.isna(max_service_date):
 min_date = min_service_date.date()
 max_date = max_service_date.date()
 
-control_a, control_b = st.columns([2, 1])
+control_a, control_b, control_c = st.columns([2, 1, 1])
 with control_a:
     selected_window = st.date_input(
         "Service Date Range",
@@ -207,14 +226,33 @@ with control_a:
         min_value=min_date,
         max_value=max_date,
     )
+
+filter_route = None
+filter_station = None
+catalog = _get_explorer_catalog(selected_mode)
+
 with control_b:
+    if selected_mode == "subway":
+        if catalog:
+            selected_entity = st.selectbox("Filter Station", options=["All"] + catalog)
+            if selected_entity != "All":
+                filter_station = selected_entity
+    else:
+        if catalog:
+            selected_entity = st.selectbox("Filter Route", options=["All"] + catalog)
+            if selected_entity != "All":
+                filter_route = selected_entity
+
+with control_c:
     row_limit = st.selectbox("Rows to Show", options=[100, 250, 500, 1000, 5000], index=2)
+
 
 start_date, end_date = _normalize_date_range(selected_window, min_date, max_date)
 start_iso = start_date.isoformat()
 end_iso = end_date.isoformat()
 
-rows_result = _load_rows(selected_mode, start_iso, end_iso, int(row_limit))
+rows_result = _load_rows(selected_mode, start_iso, end_iso, int(row_limit), filter_route=filter_route, filter_station=filter_station)
+
 if rows_result.status in {"missing", "error"}:
     st.error(rows_result.message)
     st.stop()
