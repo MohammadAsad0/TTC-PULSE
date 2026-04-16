@@ -36,7 +36,6 @@ def _looks_like_project_root(path: Path) -> bool:
     """Return True when path matches the TTC Pulse repo layout."""
     required_paths = [
         path / "src" / "ttc_pulse" / "__init__.py",
-        path / "app",
         path / "requirements.txt",
     ]
     return all(candidate.exists() for candidate in required_paths)

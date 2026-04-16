@@ -1,4 +1,4 @@
-﻿"""Step 2 subway normalization (station-first) into Silver parquet."""
+"""Step 2 subway normalization (station-first) into Silver parquet."""
 
 from __future__ import annotations
 
@@ -73,6 +73,7 @@ def _normalize_subway_sql(code_reference_path: Path | None = None) -> str:
     {code_reference_cte}
     gtfs_station_tokens AS (
         SELECT DISTINCT
+            UPPER(SPLIT_PART(stop_name, ' - ', 1)) AS gtfs_full_stop_name,
             NULLIF(
                 TRIM(
                     REGEXP_REPLACE(
@@ -119,6 +120,7 @@ def _normalize_subway_sql(code_reference_path: Path | None = None) -> str:
             TRY_CAST(REPLACE(NULLIF(TRIM("Min Delay"), ''), ',', '') AS DOUBLE) AS min_delay,
             TRY_CAST(REPLACE(NULLIF(TRIM("Min Gap"), ''), ',', '') AS DOUBLE) AS min_gap
         FROM bronze_subway
+        WHERE NULLIF(TRIM("Station"), '') IS NOT NULL
     ),
     parsed AS (
         SELECT
@@ -163,32 +165,40 @@ def _normalize_subway_sql(code_reference_path: Path | None = None) -> str:
     station_norm AS (
         SELECT
             *,
-            NULLIF(
-                TRIM(
-                    REGEXP_REPLACE(
+            CASE
+                WHEN UPPER(COALESCE(station_raw, '')) LIKE '%LINE%' 
+                     OR UPPER(COALESCE(station_raw, '')) LIKE '%SUBWAY%'
+                     OR UPPER(COALESCE(station_raw, '')) IN ('YUS', 'YU', 'BD', 'SRT', 'YONGE UNIVERSITY', 'BLOOR DANFORTH', 'SYSTEM WIDE', 'VARIOUS', 'UNKNOWN')
+                THEN NULL
+                WHEN REGEXP_MATCHES(UPPER(COALESCE(station_raw, '')), '^DUNDAS($|\\WSTATION)') THEN 'TMU'
+                WHEN REGEXP_MATCHES(UPPER(COALESCE(station_raw, '')), '^EGLINTON WEST($|\\W)') THEN 'CEDARVALE'
+                ELSE NULLIF(
+                    TRIM(
                         REGEXP_REPLACE(
                             REGEXP_REPLACE(
                                 REGEXP_REPLACE(
-                                    UPPER(COALESCE(station_raw, '')),
-                                    '[^A-Z0-9 ]',
+                                    REGEXP_REPLACE(
+                                        UPPER(COALESCE(station_raw, '')),
+                                        '[^A-Z0-9 ]',
+                                        ' ',
+                                        'g'
+                                    ),
+                                    '\\b(NORTHBOUND|SOUTHBOUND|EASTBOUND|WESTBOUND|PLATFORM|PLATFORMS|TOWARDS|TO)\\b',
                                     ' ',
                                     'g'
                                 ),
-                                '\\b(NORTHBOUND|SOUTHBOUND|EASTBOUND|WESTBOUND|PLATFORM|PLATFORMS|TOWARDS|TO)\\b',
+                                '\\b(STATION|STATIONS|STATIO|STATN|STN|STA|SUBWAY|LINE|LINES|YUS|YU|BD|SRT|SHP|SHEP|MC|CTR|CENTRE|CENTER)\\b',
                                 ' ',
                                 'g'
                             ),
-                            '\\b(STATION|STATIONS|STATIO|STATN|STN|STA|SUBWAY|LINE|LINES|YUS|YU|BD|SRT|SHP|SHEP|MC|CTR|CENTRE|CENTER)\\b',
+                            '\\s+',
                             ' ',
                             'g'
-                        ),
-                        '\\s+',
-                        ' ',
-                        'g'
-                    )
-                ),
-                ''
-            ) AS station_canonical,
+                        )
+                    ),
+                    ''
+                )
+            END AS station_canonical,
             COALESCE(
                 TRY_CAST(CAST(service_date AS VARCHAR) || ' ' || time_raw AS TIMESTAMP),
                 CAST(service_date AS TIMESTAMP)
@@ -206,12 +216,13 @@ def _normalize_subway_sql(code_reference_path: Path | None = None) -> str:
             d.*,
             r.route_id AS route_id_gtfs,
             gs.station_canonical_gtfs,
+            gs.gtfs_full_stop_name,
             scr.incident_description
         FROM direction_ready d
         LEFT JOIN gtfs_line_routes r
             ON r.route_short_name = d.line_code_norm
         LEFT JOIN LATERAL (
-            SELECT station_canonical_gtfs
+            SELECT station_canonical_gtfs, gtfs_full_stop_name
             FROM gtfs_station_tokens s
             WHERE d.station_canonical IS NOT NULL
                 AND s.station_canonical_gtfs IS NOT NULL
@@ -255,10 +266,7 @@ def _normalize_subway_sql(code_reference_path: Path | None = None) -> str:
             line_code_norm,
             route_id_gtfs,
             station_raw AS station_text_raw,
-            CASE
-                WHEN UPPER(COALESCE(station_canonical_gtfs, station_canonical, '')) LIKE '%PIONEER%' THEN 'PIONEER VILLAGE'
-                ELSE COALESCE(station_canonical_gtfs, station_canonical)
-            END AS station_canonical,
+            gtfs_full_stop_name AS station_canonical,
             station_raw AS location_text_raw,
             incident_description AS incident_text_raw,
             code_raw AS incident_code_raw,
@@ -299,6 +307,7 @@ def _normalize_subway_sql(code_reference_path: Path | None = None) -> str:
             ingested_at,
             row_hash
         FROM linked
+        WHERE gtfs_full_stop_name IS NOT NULL
     )
     SELECT
         event_id,

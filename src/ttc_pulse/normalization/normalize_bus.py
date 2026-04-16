@@ -43,6 +43,10 @@ def _normalize_bus_sql() -> str:
             TRY_CAST(REPLACE(NULLIF(TRIM("Min Delay"), ''), ',', '') AS DOUBLE) AS min_delay,
             TRY_CAST(REPLACE(NULLIF(TRIM("Min Gap"), ''), ',', '') AS DOUBLE) AS min_gap
         FROM bronze_bus
+        WHERE COALESCE(
+            NULLIF(TRIM("Route"), ''),
+            NULLIF(TRIM("Line"), '')
+        ) IS NOT NULL
     ),
     parsed_dates AS (
         SELECT
@@ -60,14 +64,14 @@ def _normalize_bus_sql() -> str:
         SELECT
             *,
             NULLIF(
-                REGEXP_EXTRACT(COALESCE(route_raw, line_raw), '^([0-9]{1,4})(?:\\.0+)?$', 1),
+                REGEXP_EXTRACT(COALESCE(route_raw, line_raw), '^([0-9]{1,4})[A-Za-z\\s]*(?:\\.0+)?$', 1),
                 ''
             ) AS route_exact_token,
             NULLIF(
-                REGEXP_EXTRACT(COALESCE(route_raw, line_raw), '^([0-9]{1,4})(?:\\.0+)?\\b', 1),
+                REGEXP_EXTRACT(COALESCE(route_raw, line_raw), '^([0-9]{1,4})[A-Za-z\\s]*(?:\\.0+)?(?:\\b|$)', 1),
                 ''
             ) AS route_prefix_token,
-            NULLIF(REGEXP_EXTRACT(line_raw, '^([0-9]{1,4})(?:\\.0+)?\\b', 1), '') AS line_prefix_token,
+            NULLIF(REGEXP_EXTRACT(line_raw, '^([0-9]{1,4})[A-Za-z\\s]*(?:\\.0+)?(?:\\b|$)', 1), '') AS line_prefix_token,
             NULLIF(
                 REGEXP_EXTRACT(UPPER(COALESCE(route_raw, line_raw)), 'LINE\\s*([0-9]{1,2})', 1),
                 ''
@@ -174,6 +178,9 @@ def _normalize_bus_sql() -> str:
             ingested_at,
             row_hash
         FROM direction_ready
+        WHERE TRY_CAST(route_short_name_norm AS INTEGER) BETWEEN 7 AND 191
+           OR TRY_CAST(route_short_name_norm AS INTEGER) BETWEEN 300 AND 399
+           OR TRY_CAST(route_short_name_norm AS INTEGER) BETWEEN 900 AND 999
     )
     SELECT
         event_id,

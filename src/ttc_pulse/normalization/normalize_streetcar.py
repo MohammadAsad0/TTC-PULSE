@@ -43,6 +43,10 @@ def _normalize_streetcar_sql() -> str:
             TRY_CAST(REPLACE(NULLIF(TRIM("Min Delay"), ''), ',', '') AS DOUBLE) AS min_delay,
             TRY_CAST(REPLACE(NULLIF(TRIM("Min Gap"), ''), ',', '') AS DOUBLE) AS min_gap
         FROM bronze_streetcar
+        WHERE COALESCE(
+            NULLIF(TRIM("Route"), ''),
+            NULLIF(TRIM("Line"), '')
+        ) IS NOT NULL
     ),
     parsed_dates AS (
         SELECT
@@ -174,6 +178,7 @@ def _normalize_streetcar_sql() -> str:
             ingested_at,
             row_hash
         FROM direction_ready
+        WHERE route_short_name_norm IN ('501', '503', '504', '505', '506', '508', '509', '510', '511', '512')
     )
     SELECT
         event_id,

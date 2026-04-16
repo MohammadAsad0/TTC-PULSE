@@ -248,7 +248,7 @@ def _build_spatial_query() -> str:
         LEFT JOIN cause_mix AS c
             ON m.mode = c.mode AND m.spatial_unit_id = c.spatial_unit_id
         LEFT JOIN stop_lookup_norm AS l
-            ON m.spatial_unit_id = l.station_key
+            ON {stop_station_key_expr.replace("stop_name", "m.spatial_unit_id")} = l.station_key
     )
     SELECT
         mode,
