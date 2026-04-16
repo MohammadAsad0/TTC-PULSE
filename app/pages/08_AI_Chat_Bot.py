@@ -97,6 +97,36 @@ def _extract_station_tokens(question: str) -> list[str]:
     return tokens[:5]
 
 
+@st.cache_data(ttl=300)
+def _load_route_catalog(route_mode: str) -> pd.DataFrame:
+    route_file = resolve_project_paths().project_root / "dimensions" / "dim_route_gtfs.parquet"
+    if not route_file.exists():
+        return pd.DataFrame(columns=["route_id", "route_short_name", "route_long_name"])
+    frame = pd.read_parquet(route_file)
+    if frame.empty:
+        return pd.DataFrame(columns=["route_id", "route_short_name", "route_long_name"])
+    if "route_mode" in frame.columns:
+        frame = frame[frame["route_mode"].astype(str).str.lower() == route_mode].copy()
+    if frame.empty:
+        return pd.DataFrame(columns=["route_id", "route_short_name", "route_long_name"])
+    frame["route_id"] = frame.get("route_id", "").astype(str).str.strip()
+    frame["route_short_name"] = frame.get("route_short_name", "").astype(str).str.strip()
+    frame["route_long_name"] = frame.get("route_long_name", "").astype(str).str.strip()
+    frame = frame[frame["route_id"] != ""].copy()
+    frame = frame.drop_duplicates(subset=["route_id"], keep="first")
+    frame.loc[frame["route_short_name"] == "", "route_short_name"] = frame["route_id"]
+    return frame[["route_id", "route_short_name", "route_long_name"]]
+
+
+def _format_entity_label(mode: str, entity_id: object, entity_labels: dict[str, str] | None = None, prefix: str = "Route") -> str:
+    entity_text = str(entity_id)
+    if entity_labels and entity_text in entity_labels:
+        return entity_labels[entity_text]
+    if mode in {"bus", "streetcar"}:
+        return f"Streetcar Route {entity_text}" if mode == "streetcar" else f"Route {entity_text}"
+    return entity_text
+
+
 @st.cache_data(ttl=3600)
 def _get_entity_catalog(mode: str) -> list[str]:
     if mode == "subway":
@@ -669,12 +699,35 @@ if focus_mode != "All":
         "Bus Route": "bus",
         "Streetcar Route": "streetcar"
     }
-    catalog = _get_entity_catalog(mode_map[focus_mode])
+    selected_internal_mode = mode_map[focus_mode]
+    catalog = _get_entity_catalog(selected_internal_mode)
+    
+    bus_route_labels = {}
+    if selected_internal_mode in {"bus", "streetcar"}:
+        route_df = _load_route_catalog(selected_internal_mode)
+        prefix = "Streetcar Route" if selected_internal_mode == "streetcar" else "Route"
+        for row in route_df.itertuples(index=False):
+            rid = getattr(row, "route_id", "")
+            if not rid: continue
+            label = f"{prefix} {rid}"
+            sname = getattr(row, "route_short_name", "")
+            lname = getattr(row, "route_long_name", "")
+            if sname and sname != rid:
+                label += f" ({sname})"
+            if lname:
+                label += f" - {lname}"
+            bus_route_labels[rid] = label
+
     if catalog:
-        selected_entity = st.selectbox(f"Select {focus_mode}", options=catalog)
         if focus_mode == "Subway Station":
+            selected_entity = st.selectbox(f"Select {focus_mode}", options=catalog)
             force_station = selected_entity
         else:
+            selected_entity = st.selectbox(
+                f"Select {focus_mode}", 
+                options=catalog,
+                format_func=lambda x: _format_entity_label(selected_internal_mode, x, bus_route_labels)
+            )
             force_route = selected_entity
     else:
         st.warning(f"No {focus_mode.lower()}s available in catalog.")
