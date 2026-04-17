@@ -31,6 +31,8 @@ Active project docs live in `docs/`:
 
 ## Environment
 
+Use Python version 3.12.10 to download the project's required libraries from the requirements file.
+
 Recommended stable interpreter in this workspace:
 ```bash
 cd ttc_pulse
