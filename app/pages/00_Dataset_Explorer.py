@@ -173,6 +173,19 @@ def _get_explorer_catalog(mode: str) -> list[str]:
     return []
 
 
+def _get_display_entity_names(
+    mode: str,
+    catalog: list[str],
+    route_labels: dict[str, str] | None = None,
+) -> list[str]:
+    if mode == "subway":
+        cleaned = [str(x).strip() for x in catalog if str(x).strip()]
+        return list(dict.fromkeys(cleaned))
+    if mode in {"bus", "streetcar"}:
+        return [_format_entity_label(mode, route_id, route_labels) for route_id in catalog]
+    return []
+
+
 
 header_left, header_right = st.columns([4, 1], vertical_alignment="bottom")
 with header_left:
@@ -277,6 +290,7 @@ if selected_mode in {"bus", "streetcar"}:
         if lname:
             label += f" - {lname}"
         bus_route_labels[rid] = label
+    catalog = [entity for entity in catalog if entity in bus_route_labels]
 
 with control_b:
     if selected_mode == "subway":
@@ -341,20 +355,21 @@ st.dataframe(frame[display_columns], use_container_width=True, hide_index=True)
 st.divider()
 if selected_mode == "subway":
     entity_name = "station"
-    target_col = "station_canonical"
 else:
     entity_name = "route"
-    target_col = "route_label_raw" if "route_label_raw" in frame.columns else "route_short_name_norm"
 
-if target_col in frame.columns:
-    unique_names = sorted([str(x) for x in frame[target_col].dropna().unique()])
-    total_names = len(unique_names)
-    
-    st.caption(f"Total number of {entity_name}s: {total_names}")
-    
-    if total_names > 0:
-        display_limit = st.slider(f"Select number of {entity_name}s to display", 1, total_names, total_names)
-        st.write(", ".join(unique_names[:display_limit]))
+unique_names = _get_display_entity_names(
+    selected_mode,
+    catalog,
+    bus_route_labels if bus_route_labels else None,
+)
+total_names = len(unique_names)
+
+st.caption(f"Total number of {entity_name}s: {total_names}")
+
+if total_names > 0:
+    display_limit = st.slider(f"Select number of {entity_name}s to display", 1, total_names, total_names)
+    st.write(", ".join(unique_names[:display_limit]))
 
 csv_bytes = frame[display_columns].to_csv(index=False).encode("utf-8")
 st.download_button(
