@@ -21,6 +21,7 @@ def _bootstrap_src_path() -> None:
 _bootstrap_src_path()
 
 from ttc_pulse.dashboard.loaders import get_dataset_coverage, load_dataset_rows, resolve_dataset_path
+from ttc_pulse.dashboard.station_canonical import canonicalize_subway_station_name
 from ttc_pulse.dashboard.storytelling import is_presentation_mode, mark_dataset_reloaded, page_story_header, story_mode_selector, sync_dashboard_data_cache
 
 sync_dashboard_data_cache()
@@ -98,7 +99,6 @@ MODE_COLUMNS: dict[str, list[str]] = {
     ],
 }
 
-
 def _normalize_date_range(selection: object, min_date: date, max_date: date) -> tuple[date, date]:
     if isinstance(selection, tuple) and len(selection) == 2:
         start_date, end_date = selection
@@ -162,7 +162,9 @@ def _get_explorer_catalog(mode: str) -> list[str]:
             query_template="SELECT DISTINCT station_canonical FROM {source} WHERE station_canonical IS NOT NULL ORDER BY station_canonical"
         )
         if res.status in ("ok", "empty") and not res.frame.empty:
-            return res.frame["station_canonical"].tolist()
+            stations = [canonicalize_subway_station_name(x) for x in res.frame["station_canonical"].tolist()]
+            stations = [x for x in stations if x]
+            return sorted(list(dict.fromkeys(stations)))
     else:
         res = query_table(
             table_name="gold_route_time_metrics",
@@ -179,7 +181,8 @@ def _get_display_entity_names(
     route_labels: dict[str, str] | None = None,
 ) -> list[str]:
     if mode == "subway":
-        cleaned = [str(x).strip() for x in catalog if str(x).strip()]
+        cleaned = [canonicalize_subway_station_name(x) for x in catalog if str(x).strip()]
+        cleaned = [x for x in cleaned if x]
         return list(dict.fromkeys(cleaned))
     if mode in {"bus", "streetcar"}:
         return [_format_entity_label(mode, route_id, route_labels) for route_id in catalog]

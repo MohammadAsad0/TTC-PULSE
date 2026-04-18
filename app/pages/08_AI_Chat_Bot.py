@@ -25,6 +25,7 @@ def _bootstrap_src_path() -> None:
 _bootstrap_src_path()
 
 from ttc_pulse.dashboard.loaders import query_table
+from ttc_pulse.dashboard.station_canonical import canonicalize_subway_station_name, subway_station_canonical_sql
 from ttc_pulse.dashboard.storytelling import sync_dashboard_data_cache
 from ttc_pulse.utils.project_setup import resolve_project_paths
 
@@ -130,12 +131,20 @@ def _format_entity_label(mode: str, entity_id: object, entity_labels: dict[str, 
 @st.cache_data(ttl=3600)
 def _get_entity_catalog(mode: str) -> list[str]:
     if mode == "subway":
+        station_expr = subway_station_canonical_sql("station_canonical")
         res = query_table(
             table_name="gold_station_time_metrics",
-            query_template="SELECT DISTINCT station_canonical FROM {source} WHERE station_canonical IS NOT NULL ORDER BY station_canonical"
+            query_template=f"""
+            SELECT DISTINCT {station_expr} AS station_canonical
+            FROM {{source}}
+            WHERE station_canonical IS NOT NULL
+                AND TRIM(station_canonical) <> ''
+            ORDER BY station_canonical
+            """
         )
         if res.status in ("ok", "empty") and not res.frame.empty:
-            return res.frame["station_canonical"].tolist()
+            catalog = [canonicalize_subway_station_name(x) for x in res.frame["station_canonical"].tolist() if str(x).strip()]
+            return list(dict.fromkeys(catalog))
         return []
     else:
         res = query_table(
@@ -246,19 +255,20 @@ def _build_question_specific_context(question: str, force_route: str | None = No
             parts.append(f"No records matched route token {route_token} in Gold route metrics, and silver bus events parquet is missing.")
 
     for station_token in station_tokens:
+        station_expr = subway_station_canonical_sql("station_canonical")
         station_gold = query_table(
             table_name="gold_station_time_metrics",
-            query_template="""
+            query_template=f"""
             SELECT
-                station_canonical,
+                {station_expr} AS station_canonical,
                 MIN(service_date) AS min_service_date,
                 MAX(service_date) AS max_service_date,
                 SUM(frequency)::BIGINT AS frequency,
                 quantile_cont(severity_p90, 0.9) FILTER (WHERE severity_p90 IS NOT NULL) AS severity_p90,
                 AVG(composite_score) FILTER (WHERE composite_score IS NOT NULL) AS composite_score
-            FROM {source}
+            FROM {{source}}
             WHERE station_canonical IS NOT NULL
-                AND UPPER(station_canonical) LIKE UPPER(?)
+                AND UPPER({station_expr}) LIKE UPPER(?)
             GROUP BY 1
             ORDER BY frequency DESC, station_canonical
             LIMIT 30
@@ -405,14 +415,15 @@ def _build_dataset_context() -> str:
 
     top_stations = query_table(
         table_name="gold_station_time_metrics",
-        query_template="""
+        query_template=f"""
         SELECT
-            station_canonical,
+            {subway_station_canonical_sql("station_canonical")} AS station_canonical,
             SUM(frequency)::BIGINT AS frequency,
             quantile_cont(severity_p90, 0.9) FILTER (WHERE severity_p90 IS NOT NULL) AS severity_p90,
             AVG(composite_score) FILTER (WHERE composite_score IS NOT NULL) AS composite_score
-        FROM {source}
+        FROM {{source}}
         WHERE station_canonical IS NOT NULL
+            AND TRIM(station_canonical) <> ''
         GROUP BY 1
         ORDER BY frequency DESC
         LIMIT 15
@@ -425,10 +436,11 @@ def _build_dataset_context() -> str:
 
     station_catalog = query_table(
         table_name="gold_station_time_metrics",
-        query_template="""
-        SELECT DISTINCT station_canonical
-        FROM {source}
+        query_template=f"""
+        SELECT DISTINCT {subway_station_canonical_sql("station_canonical")} AS station_canonical
+        FROM {{source}}
         WHERE station_canonical IS NOT NULL
+            AND TRIM(station_canonical) <> ''
         ORDER BY station_canonical
         LIMIT 500
         """,
@@ -638,12 +650,13 @@ def _render_visualization(intent: str) -> None:
     if intent == "top_subway_stations":
         result = query_table(
             table_name="gold_station_time_metrics",
-            query_template="""
+            query_template=f"""
             SELECT
-                station_canonical,
+                {subway_station_canonical_sql("station_canonical")} AS station_canonical,
                 SUM(frequency)::BIGINT AS frequency
-            FROM {source}
+            FROM {{source}}
             WHERE station_canonical IS NOT NULL
+                AND TRIM(station_canonical) <> ''
             GROUP BY 1
             ORDER BY frequency DESC
             LIMIT 20

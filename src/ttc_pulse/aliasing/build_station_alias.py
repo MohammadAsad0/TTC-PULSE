@@ -50,9 +50,9 @@ def _copy_table_to_parquet(connection: Any, table_name: str, output_path: Path) 
 
 def _station_key_expression(column_name: str) -> str:
     return f"""
-    UPPER(
-        TRIM(
-            REGEXP_REPLACE(
+    REGEXP_REPLACE(
+        UPPER(
+            TRIM(
                 REGEXP_REPLACE(
                     REGEXP_REPLACE(
                         REGEXP_REPLACE(
@@ -63,52 +63,57 @@ def _station_key_expression(column_name: str) -> str:
                                             REGEXP_REPLACE(
                                                 REGEXP_REPLACE(
                                                     REGEXP_REPLACE(
-                                                        REPLACE(COALESCE({column_name}, ''), '&', ' AND '),
-                                                        '[^A-Za-z0-9 ]',
-                                                        ' ',
+                                                        REGEXP_REPLACE(
+                                                            REPLACE(COALESCE({column_name}, ''), '&', ' AND '),
+                                                            '[^A-Za-z0-9 ]',
+                                                            ' ',
+                                                            'g'
+                                                        ),
+                                                        '(?i)\\bSCARB\\b',
+                                                        'SCARBOROUGH',
                                                         'g'
                                                     ),
-                                                    '(?i)\\bSCARB\\b',
-                                                    'SCARBOROUGH',
+                                                    '(?i)\\bCTR\\b',
+                                                    'CENTRE',
                                                     'g'
                                                 ),
-                                                '(?i)\\bCTR\\b',
+                                                '(?i)\\bCENTR\\b',
                                                 'CENTRE',
                                                 'g'
                                             ),
-                                            '(?i)\\bCENTR\\b',
-                                            'CENTRE',
+                                            '(?i)\\bVMC\\b',
+                                            'VAUGHAN METROPOLITAN CENTRE',
                                             'g'
                                         ),
-                                        '(?i)\\bVMC\\b',
-                                        'VAUGHAN METROPOLITAN CENTRE',
+                                        '(?i)\\bMC\\b',
+                                        'METROPOLITAN CENTRE',
                                         'g'
                                     ),
-                                    '(?i)\\bMC\\b',
-                                    'METROPOLITAN CENTRE',
+                                    '(?i)\\b(STATIO|STN|STA)\\b',
+                                    ' STATION ',
                                     'g'
                                 ),
-                                '(?i)\\b(STATIO|STN|STA)\\b',
-                                ' STATION ',
+                                '(?i)\\b(YUS|YU|BD|SHP|SHEP|SRT|RT)\\b',
+                                ' ',
                                 'g'
                             ),
-                            '(?i)\\b(YUS|YU|BD|SHP|SHEP|SRT|RT)\\b',
+                            '(?i)\\b(SUBWAY|LINE|LINES|PLATFORM|NORTHBOUND|SOUTHBOUND|EASTBOUND|WESTBOUND|BUS BAY)\\b',
                             ' ',
                             'g'
                         ),
-                        '(?i)\\b(SUBWAY|LINE|LINES|PLATFORM|NORTHBOUND|SOUTHBOUND|EASTBOUND|WESTBOUND|BUS BAY)\\b',
+                        '(?i)\\bSTATION\\b',
                         ' ',
                         'g'
                     ),
-                    '(?i)\\bSTATION\\b',
+                    '\\s+',
                     ' ',
                     'g'
-                ),
-                '\\s+',
-                ' ',
-                'g'
+                )
             )
-        )
+        ),
+        '^(BLOOR|YONGE)$',
+        'BLOOR YONGE',
+        'g'
     )
     """
 

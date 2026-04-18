@@ -8,12 +8,14 @@ from typing import Any
 
 import duckdb
 
+from ttc_pulse.station_canonical import subway_station_canonical_sql
 from ttc_pulse.utils.project_setup import resolve_project_paths, sql_literal
 
 OUTPUT_FILENAME = "silver_subway_events.parquet"
 
 
 def _normalize_subway_sql(code_reference_path: Path | None = None) -> str:
+    canonical_station_expr = subway_station_canonical_sql("gtfs_full_stop_name", output_style="upper")
     code_reference_cte = """
     subway_code_reference AS (
         SELECT DISTINCT
@@ -266,7 +268,7 @@ def _normalize_subway_sql(code_reference_path: Path | None = None) -> str:
             line_code_norm,
             route_id_gtfs,
             station_raw AS station_text_raw,
-            gtfs_full_stop_name AS station_canonical,
+            {canonical_station_expr} AS station_canonical,
             station_raw AS location_text_raw,
             incident_description AS incident_text_raw,
             code_raw AS incident_code_raw,

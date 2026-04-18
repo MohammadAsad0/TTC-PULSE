@@ -13,6 +13,7 @@ from ttc_pulse.marts._gold_utils import (
     materialize_query_to_gold,
 )
 from ttc_pulse.marts.scoring import DEFAULT_SCORE_WEIGHTS, composite_score_sql, validate_weights
+from ttc_pulse.station_canonical import subway_station_canonical_sql
 from ttc_pulse.utils.project_setup import ensure_duckdb_connection, quote_identifier, resolve_project_paths
 
 TABLE_NAME = "gold_station_time_metrics"
@@ -29,28 +30,33 @@ MIN_HIGH_CONF_SPATIAL_ROWS = 1000
 def _station_key_expr(column_name: str) -> str:
     return f"""
     NULLIF(
-        TRIM(
-            REGEXP_REPLACE(
+        REGEXP_REPLACE(
+            TRIM(
                 REGEXP_REPLACE(
                     REGEXP_REPLACE(
                         REGEXP_REPLACE(
-                            UPPER(COALESCE({column_name}, '')),
-                            '[^A-Z0-9 ]',
+                            REGEXP_REPLACE(
+                                UPPER(COALESCE({column_name}, '')),
+                                '[^A-Z0-9 ]',
+                                ' ',
+                                'g'
+                            ),
+                            '\\b(NORTHBOUND|SOUTHBOUND|EASTBOUND|WESTBOUND|PLATFORM|PLATFORMS|TOWARDS|TO)\\b',
                             ' ',
                             'g'
                         ),
-                        '\\b(NORTHBOUND|SOUTHBOUND|EASTBOUND|WESTBOUND|PLATFORM|PLATFORMS|TOWARDS|TO)\\b',
+                        '\\s+',
                         ' ',
                         'g'
                     ),
                     '\\b(STATION|STN|SUBWAY|LINE|LINES|YUS|YU|BD|SRT|SHP|SHEP|MC|CTR|CENTRE|CENTER)\\b',
                     ' ',
                     'g'
-                ),
-                '\\s+',
-                ' ',
-                'g'
-            )
+                )
+            ),
+            '^(BLOOR|YONGE)$',
+            'BLOOR YONGE',
+            'g'
         ),
         ''
     )
@@ -58,6 +64,7 @@ def _station_key_expr(column_name: str) -> str:
 
 
 def _build_station_query() -> str:
+    canonical_station_expr = subway_station_canonical_sql("station_canonical", output_style="upper")
     composite_expr = composite_score_sql(
         frequency_expr="frequency",
         severity_p90_expr="severity_p90",
@@ -70,7 +77,7 @@ def _build_station_query() -> str:
     WITH base AS (
         SELECT
             line_code_norm,
-            station_canonical,
+            {canonical_station_expr} AS station_canonical,
             service_date,
             hour_bin,
             incident_category,

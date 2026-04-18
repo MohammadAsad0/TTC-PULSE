@@ -10,6 +10,7 @@ from typing import Iterable, Sequence
 import duckdb
 import pandas as pd
 
+from ttc_pulse.dashboard.station_canonical import canonicalize_subway_station_name, subway_station_canonical_sql
 from ttc_pulse.utils.project_setup import resolve_project_paths
 
 GOLD_TABLE_FILES: dict[str, str] = {
@@ -358,8 +359,13 @@ def load_dataset_rows(
             where_clauses.append("route_id_gtfs = ?")
             params.append(filter_route)
         if filter_station:
-            where_clauses.append("station_canonical = ?")
-            params.append(filter_station)
+            if mode == "subway":
+                station_key_expr = subway_station_canonical_sql("station_canonical")
+                where_clauses.append(f"{station_key_expr} = ?")
+                params.append(canonicalize_subway_station_name(filter_station))
+            else:
+                where_clauses.append("station_canonical = ?")
+                params.append(filter_station)
 
         where_sql = " AND ".join(where_clauses)
 

@@ -25,11 +25,11 @@ from ttc_pulse.dashboard.formatting import DAY_NAME_ORDER, fmt_float, fmt_int
 from ttc_pulse.dashboard.ai_explain import render_ai_explain_block
 from ttc_pulse.dashboard.loaders import query_table
 from ttc_pulse.dashboard.metric_config import METRIC_OPTIONS, metric_axis_title, metric_selector_help_text, resolve_metric_choice
+from ttc_pulse.dashboard.station_canonical import canonicalize_subway_station_name, subway_station_canonical_sql
 from ttc_pulse.dashboard.storytelling import is_presentation_mode, next_question_hint, page_story_header, story_mode_selector, sync_dashboard_data_cache
 
 sync_dashboard_data_cache()
 from ttc_pulse.utils.project_setup import resolve_project_paths
-
 
 def _mode_config(mode: str, scope: str = "station") -> tuple[str, str, str, str]:
     if mode in {"bus", "streetcar"}:
@@ -77,6 +77,18 @@ def _format_entity_label(
     return entity_text
 
 
+def _entity_sql(mode: str, scope: str, id_col: str) -> str:
+    if mode == "subway" and scope == "station":
+        return subway_station_canonical_sql(id_col)
+    return id_col
+
+
+def _entity_filter_value(mode: str, scope: str, entity_id: str) -> str:
+    if mode == "subway" and scope == "station":
+        return canonicalize_subway_station_name(entity_id)
+    return entity_id
+
+
 @st.cache_data(ttl=120)
 def _load_coverage(mode: str, scope: str = "station"):
     table_name, id_col, _, where_mode = _mode_config(mode, scope)
@@ -97,18 +109,20 @@ def _load_coverage(mode: str, scope: str = "station"):
 @st.cache_data(ttl=120)
 def _load_rankings(mode: str, start_date: str, end_date: str, scope: str = "station"):
     table_name, id_col, _, where_mode = _mode_config(mode, scope)
+    entity_expr = _entity_sql(mode, scope, id_col)
     return query_table(
         table_name=table_name,
         query_template=f"""
         WITH entity_agg AS (
             SELECT
-                {id_col} AS entity_id,
+                {entity_expr} AS entity_id,
                 SUM(frequency)::DOUBLE AS frequency,
                 quantile_cont(severity_p90, 0.9) FILTER (WHERE severity_p90 IS NOT NULL) AS severity_p90,
                 quantile_cont(regularity_p90, 0.9) FILTER (WHERE regularity_p90 IS NOT NULL) AS regularity_p90,
                 AVG(cause_mix_score) FILTER (WHERE cause_mix_score IS NOT NULL) AS cause_mix_score
             FROM {{source}}
-            WHERE {id_col} IS NOT NULL
+            WHERE {entity_expr} IS NOT NULL
+                AND {entity_expr} <> ''
                 AND service_date IS NOT NULL
                 {where_mode}
                 AND service_date BETWEEN ? AND ?
@@ -147,6 +161,8 @@ def _load_rankings(mode: str, start_date: str, end_date: str, scope: str = "stat
 @st.cache_data(ttl=120)
 def _load_year_metrics(mode: str, entity_id: str, start_date: str, end_date: str, scope: str = "station"):
     table_name, id_col, _, where_mode = _mode_config(mode, scope)
+    entity_expr = _entity_sql(mode, scope, id_col)
+    entity_value = _entity_filter_value(mode, scope, entity_id)
     return query_table(
         table_name=table_name,
         query_template=f"""
@@ -158,7 +174,7 @@ def _load_year_metrics(mode: str, entity_id: str, start_date: str, end_date: str
                 quantile_cont(regularity_p90, 0.9) FILTER (WHERE regularity_p90 IS NOT NULL) AS regularity_p90,
                 AVG(cause_mix_score) FILTER (WHERE cause_mix_score IS NOT NULL) AS cause_mix_score
             FROM {{source}}
-            WHERE {id_col} = ?
+            WHERE {entity_expr} = ?
                 {where_mode}
                 AND service_date IS NOT NULL
                 AND service_date BETWEEN ? AND ?
@@ -181,13 +197,15 @@ def _load_year_metrics(mode: str, entity_id: str, start_date: str, end_date: str
         )
         SELECT * FROM scored ORDER BY year ASC
         """,
-        params=[entity_id, start_date, end_date],
+        params=[entity_value, start_date, end_date],
     )
 
 
 @st.cache_data(ttl=120)
 def _load_month_metrics(mode: str, entity_id: str, year: int, start_date: str, end_date: str, scope: str = "station"):
     table_name, id_col, _, where_mode = _mode_config(mode, scope)
+    entity_expr = _entity_sql(mode, scope, id_col)
+    entity_value = _entity_filter_value(mode, scope, entity_id)
     return query_table(
         table_name=table_name,
         query_template=f"""
@@ -203,7 +221,7 @@ def _load_month_metrics(mode: str, entity_id: str, year: int, start_date: str, e
                 quantile_cont(regularity_p90, 0.9) FILTER (WHERE regularity_p90 IS NOT NULL) AS regularity_p90,
                 AVG(cause_mix_score) FILTER (WHERE cause_mix_score IS NOT NULL) AS cause_mix_score
             FROM {{source}}
-            WHERE {id_col} = ?
+            WHERE {entity_expr} = ?
                 {where_mode}
                 AND service_date IS NOT NULL
                 AND CAST(EXTRACT(YEAR FROM service_date) AS INTEGER) = ?
@@ -246,7 +264,7 @@ def _load_month_metrics(mode: str, entity_id: str, year: int, start_date: str, e
         FROM scored
         ORDER BY month_num ASC
         """,
-        params=[entity_id, year, start_date, end_date],
+        params=[entity_value, year, start_date, end_date],
     )
 
 
@@ -261,6 +279,8 @@ def _load_weekday_metrics(
     scope: str = "station",
 ):
     table_name, id_col, _, where_mode = _mode_config(mode, scope)
+    entity_expr = _entity_sql(mode, scope, id_col)
+    entity_value = _entity_filter_value(mode, scope, entity_id)
     return query_table(
         table_name=table_name,
         query_template=f"""
@@ -272,7 +292,7 @@ def _load_weekday_metrics(
                 quantile_cont(regularity_p90, 0.9) FILTER (WHERE regularity_p90 IS NOT NULL) AS regularity_p90,
                 AVG(cause_mix_score) FILTER (WHERE cause_mix_score IS NOT NULL) AS cause_mix_score
             FROM {{source}}
-            WHERE {id_col} = ?
+            WHERE {entity_expr} = ?
                 {where_mode}
                 AND service_date IS NOT NULL
                 AND CAST(EXTRACT(YEAR FROM service_date) AS INTEGER) = ?
@@ -297,7 +317,7 @@ def _load_weekday_metrics(
         )
         SELECT * FROM scored
         """,
-        params=[entity_id, year, month_num, month_num, start_date, end_date],
+        params=[entity_value, year, month_num, month_num, start_date, end_date],
     )
 
 
@@ -313,6 +333,8 @@ def _load_time_bin_metrics(
     scope: str = "station",
 ):
     table_name, id_col, _, where_mode = _mode_config(mode, scope)
+    entity_expr = _entity_sql(mode, scope, id_col)
+    entity_value = _entity_filter_value(mode, scope, entity_id)
     return query_table(
         table_name=table_name,
         query_template=f"""
@@ -335,7 +357,7 @@ def _load_time_bin_metrics(
                 quantile_cont(regularity_p90, 0.9) FILTER (WHERE regularity_p90 IS NOT NULL) AS regularity_p90,
                 AVG(cause_mix_score) FILTER (WHERE cause_mix_score IS NOT NULL) AS cause_mix_score
             FROM {{source}}
-            WHERE {id_col} = ?
+            WHERE {entity_expr} = ?
                 {where_mode}
                 AND service_date IS NOT NULL
                 AND CAST(EXTRACT(YEAR FROM service_date) AS INTEGER) = ?
@@ -373,7 +395,7 @@ def _load_time_bin_metrics(
             ELSE 99
         END
         """,
-        params=[entity_id, year, month_num, month_num, day_name, day_name, start_date, end_date],
+        params=[entity_value, year, month_num, month_num, day_name, day_name, start_date, end_date],
     )
 
 
@@ -388,6 +410,8 @@ def _load_weekly_heatmap_metrics(
     scope: str = "station",
 ):
     table_name, id_col, _, where_mode = _mode_config(mode, scope)
+    entity_expr = _entity_sql(mode, scope, id_col)
+    entity_value = _entity_filter_value(mode, scope, entity_id)
     return query_table(
         table_name=table_name,
         query_template=f"""
@@ -400,7 +424,7 @@ def _load_weekly_heatmap_metrics(
                 quantile_cont(regularity_p90, 0.9) FILTER (WHERE regularity_p90 IS NOT NULL) AS regularity_p90,
                 AVG(cause_mix_score) FILTER (WHERE cause_mix_score IS NOT NULL) AS cause_mix_score
             FROM {{source}}
-            WHERE {id_col} = ?
+            WHERE {entity_expr} = ?
                 {where_mode}
                 AND service_date IS NOT NULL
                 AND CAST(EXTRACT(YEAR FROM service_date) AS INTEGER) = ?
@@ -427,7 +451,7 @@ def _load_weekly_heatmap_metrics(
         SELECT * FROM scored
         ORDER BY week_of_month, day_name
         """,
-        params=[entity_id, year, month_num, start_date, end_date],
+        params=[entity_value, year, month_num, start_date, end_date],
     )
 
 

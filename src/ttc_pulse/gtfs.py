@@ -5,6 +5,7 @@ import re
 import pandas as pd
 
 from ttc_pulse.paths import GTFS_DIR, SUBWAY_DIR
+from ttc_pulse.station_canonical import canonicalize_subway_station_name
 
 
 SUBWAY_ROUTE_ALIASES = {
@@ -14,7 +15,6 @@ SUBWAY_ROUTE_ALIASES = {
     "SHP": "4",
     "SRT": None,
 }
-
 
 def normalize_text(value: object) -> str | None:
     if value is None or pd.isna(value):
@@ -29,6 +29,7 @@ def normalize_station_name(value: object) -> str | None:
     if not text:
         return None
     text = text.replace(" STN", " STATION")
+    text = canonicalize_subway_station_name(text, output_style="upper")
     return text
 
 
