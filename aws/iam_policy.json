@@ -1,0 +1,56 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "BucketListAndLocation",
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
+      "Resource": "arn:aws:s3:::YOUR_BUCKET"
+    },
+    {
+      "Sid": "GoldDataAndAthenaResults",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+      "Resource": ["arn:aws:s3:::YOUR_BUCKET/ttc-pulse/*", "arn:aws:s3:::YOUR_BUCKET/athena-results/*"]
+    },
+    {
+      "Sid": "GlueCatalogForTtcPulseDatabase",
+      "Effect": "Allow",
+      "Action": [
+        "glue:GetDatabase",
+        "glue:CreateDatabase",
+        "glue:DeleteDatabase",
+        "glue:GetTable",
+        "glue:GetTables",
+        "glue:CreateTable",
+        "glue:UpdateTable",
+        "glue:DeleteTable",
+        "glue:GetPartition",
+        "glue:GetPartitions"
+      ],
+      "Resource": [
+        "arn:aws:glue:REGION:ACCOUNT_ID:catalog",
+        "arn:aws:glue:REGION:ACCOUNT_ID:database/ttc_pulse",
+        "arn:aws:glue:REGION:ACCOUNT_ID:table/ttc_pulse/*"
+      ]
+    },
+    {
+      "Sid": "AthenaQueriesInPrimaryWorkgroup",
+      "Effect": "Allow",
+      "Action": [
+        "athena:StartQueryExecution",
+        "athena:GetQueryExecution",
+        "athena:GetQueryResults",
+        "athena:StopQueryExecution",
+        "athena:GetWorkGroup"
+      ],
+      "Resource": "arn:aws:athena:REGION:ACCOUNT_ID:workgroup/primary"
+    },
+    {
+      "Sid": "AthenaDataCatalog",
+      "Effect": "Allow",
+      "Action": ["athena:GetDataCatalog"],
+      "Resource": "arn:aws:athena:REGION:ACCOUNT_ID:datacatalog/AwsDataCatalog"
+    }
+  ]
+}

@@ -13,6 +13,7 @@ __pycache__/
 *.parquet
 
 *.csv
+!aws/results/*.csv
 
 alerts/raw_snapshots/*.pb
 logs/*.log
